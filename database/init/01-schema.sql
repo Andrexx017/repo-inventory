@@ -1,0 +1,286 @@
+-- =====================================================================
+-- Sistema de Inventario Multi-Sucursal — Schema inicial
+-- Cubre los módulos obligatorios 3.1 a 3.5 de requirements/analisis-requerimientos.md
+-- (inventario, compras, ventas, transferencias, logística).
+-- La(s) tabla(s) de la funcionalidad adicional (sección 4) quedan pendientes
+-- hasta que se defina cuál se implementa.
+--
+-- Convención de idioma del proyecto: nombres de tablas/columnas en inglés;
+-- comentarios y documentación en español.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- Sucursales y usuarios
+-- ---------------------------------------------------------------------
+
+CREATE TABLE branches (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    code        VARCHAR(20)  NOT NULL UNIQUE,
+    name        VARCHAR(150) NOT NULL,
+    address     TEXT,
+    city        VARCHAR(100),
+    phone       VARCHAR(30),
+    active      BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- Roles fijos según sección 6.2 del análisis (Administrador general, Gerente de
+-- sucursal, Operador de inventario). Se modela como CHECK en vez de tabla propia
+-- porque el conjunto de roles es cerrado y no crece por datos.
+CREATE TABLE users (
+    id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    branch_id      BIGINT REFERENCES branches(id) ON DELETE RESTRICT,
+    name           VARCHAR(150) NOT NULL,
+    email          VARCHAR(150) NOT NULL UNIQUE,
+    password_hash  TEXT         NOT NULL,
+    role           VARCHAR(30)  NOT NULL
+        CHECK (role IN ('general_admin', 'branch_manager', 'inventory_operator')),
+    active         BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    -- Solo el administrador general tiene visibilidad total sin atarse a una sucursal.
+    CHECK (role = 'general_admin' OR branch_id IS NOT NULL)
+);
+
+-- ---------------------------------------------------------------------
+-- Catálogo de productos
+-- ---------------------------------------------------------------------
+
+CREATE TABLE product_categories (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+CREATE TABLE units_of_measure (
+    id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name         VARCHAR(50) NOT NULL UNIQUE,
+    abbreviation VARCHAR(10) NOT NULL UNIQUE
+);
+
+CREATE TABLE products (
+    id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    sku              VARCHAR(50)  NOT NULL UNIQUE,
+    name             VARCHAR(200) NOT NULL,
+    description      TEXT,
+    category_id      BIGINT REFERENCES product_categories(id) ON DELETE RESTRICT,
+    base_unit_id     BIGINT NOT NULL REFERENCES units_of_measure(id) ON DELETE RESTRICT,
+    reference_price  NUMERIC(14,2) CHECK (reference_price IS NULL OR reference_price >= 0),
+    active           BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- Múltiples unidades de medida por producto (sección 3.1), con factor de
+-- conversión respecto a la unidad base del producto.
+CREATE TABLE product_units (
+    id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    product_id          BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    unit_id             BIGINT NOT NULL REFERENCES units_of_measure(id) ON DELETE RESTRICT,
+    conversion_factor   NUMERIC(14,6) NOT NULL CHECK (conversion_factor > 0),
+    is_purchase_unit    BOOLEAN NOT NULL DEFAULT FALSE,
+    is_sale_unit        BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (product_id, unit_id)
+);
+
+-- ---------------------------------------------------------------------
+-- Inventario y movimientos (3.1) — trazabilidad obligatoria
+-- ---------------------------------------------------------------------
+
+-- Stock por sucursal. weighted_average_cost se recalcula desde el backend
+-- en cada ingreso con costo (compra), según sección 3.2.
+CREATE TABLE inventory (
+    id                     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    branch_id              BIGINT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    product_id             BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    current_quantity       NUMERIC(14,4) NOT NULL DEFAULT 0 CHECK (current_quantity >= 0),
+    minimum_stock          NUMERIC(14,4) NOT NULL DEFAULT 0 CHECK (minimum_stock >= 0),
+    weighted_average_cost  NUMERIC(14,4) NOT NULL DEFAULT 0 CHECK (weighted_average_cost >= 0),
+    updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (branch_id, product_id)
+);
+
+-- Historial auditable de todo ingreso/retiro (fecha, responsable, motivo,
+-- cantidad — requisito explícito de la sección 3.1).
+-- reference_type/reference_id apuntan de forma polimórfica al documento que
+-- originó el movimiento (orden de compra, venta, transferencia o ajuste manual);
+-- no llevan FK física porque la tabla referenciada varía según el tipo.
+CREATE TABLE inventory_movements (
+    id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    branch_id           BIGINT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    product_id          BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    movement_type       VARCHAR(30) NOT NULL CHECK (movement_type IN (
+        'purchase_in', 'return_in', 'adjustment_in', 'transfer_in',
+        'sale_out', 'shrinkage_out', 'adjustment_out', 'transfer_out'
+    )),
+    quantity            NUMERIC(14,4) NOT NULL CHECK (quantity > 0),
+    unit_cost           NUMERIC(14,4) CHECK (unit_cost IS NULL OR unit_cost >= 0),
+    reason              TEXT NOT NULL,
+    responsible_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    reference_type      VARCHAR(30) CHECK (reference_type IN ('purchase_order', 'sale', 'transfer', 'manual_adjustment')),
+    reference_id        BIGINT,
+    movement_date       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------
+-- Compras (3.2)
+-- ---------------------------------------------------------------------
+
+CREATE TABLE suppliers (
+    id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name         VARCHAR(200) NOT NULL,
+    tax_id       VARCHAR(30) UNIQUE,
+    contact_name VARCHAR(150),
+    phone        VARCHAR(30),
+    email        VARCHAR(150),
+    address      TEXT,
+    active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE purchase_orders (
+    id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    order_number       VARCHAR(30) NOT NULL UNIQUE,
+    supplier_id        BIGINT NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+    branch_id          BIGINT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    status             VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN (
+        'draft', 'sent', 'confirmed', 'partially_received', 'fully_received', 'cancelled'
+    )),
+    order_date         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    payment_term_days  INTEGER CHECK (payment_term_days IS NULL OR payment_term_days >= 0),
+    -- subtotal/total_discount/total agregan las líneas del detalle; no se pueden
+    -- derivar con columnas GENERATED (Postgres no soporta agregados entre tablas),
+    -- por lo que el backend es responsable de mantenerlos consistentes.
+    subtotal           NUMERIC(14,2) NOT NULL DEFAULT 0,
+    total_discount     NUMERIC(14,2) NOT NULL DEFAULT 0,
+    total              NUMERIC(14,2) NOT NULL DEFAULT 0,
+    created_by         BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE purchase_order_items (
+    id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    purchase_order_id BIGINT NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    product_id        BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    quantity          NUMERIC(14,4) NOT NULL CHECK (quantity > 0),
+    unit_price        NUMERIC(14,2) NOT NULL CHECK (unit_price >= 0),
+    discount_pct      NUMERIC(5,2)  NOT NULL DEFAULT 0 CHECK (discount_pct BETWEEN 0 AND 100),
+    subtotal          NUMERIC(14,2) GENERATED ALWAYS AS
+        (round(quantity * unit_price * (1 - discount_pct / 100.0), 2)) STORED
+);
+
+CREATE TABLE purchase_receipts (
+    id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    purchase_order_id  BIGINT NOT NULL REFERENCES purchase_orders(id) ON DELETE RESTRICT,
+    receipt_date       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    received_by        BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    is_complete        BOOLEAN NOT NULL DEFAULT FALSE,
+    notes              TEXT
+);
+
+CREATE TABLE purchase_receipt_items (
+    id                      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    receipt_id              BIGINT NOT NULL REFERENCES purchase_receipts(id) ON DELETE CASCADE,
+    purchase_order_item_id  BIGINT NOT NULL REFERENCES purchase_order_items(id) ON DELETE RESTRICT,
+    received_quantity       NUMERIC(14,4) NOT NULL CHECK (received_quantity > 0)
+);
+
+-- ---------------------------------------------------------------------
+-- Ventas (3.3)
+-- ---------------------------------------------------------------------
+
+CREATE TABLE price_lists (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    description TEXT,
+    active      BOOLEAN NOT NULL DEFAULT TRUE,
+    start_date  DATE,
+    end_date    DATE,
+    CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
+);
+
+CREATE TABLE price_list_items (
+    id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    price_list_id  BIGINT NOT NULL REFERENCES price_lists(id) ON DELETE CASCADE,
+    product_id     BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    price          NUMERIC(14,2) NOT NULL CHECK (price >= 0),
+    UNIQUE (price_list_id, product_id)
+);
+
+CREATE TABLE sales (
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    sale_number     VARCHAR(30) NOT NULL UNIQUE,
+    branch_id       BIGINT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    price_list_id   BIGINT REFERENCES price_lists(id) ON DELETE RESTRICT,
+    seller_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    customer_name   VARCHAR(200),
+    sale_date       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Igual que en purchase_orders: totales agregados, mantenidos por el backend.
+    subtotal        NUMERIC(14,2) NOT NULL DEFAULT 0,
+    total_discount  NUMERIC(14,2) NOT NULL DEFAULT 0,
+    total           NUMERIC(14,2) NOT NULL DEFAULT 0,
+    status          VARCHAR(20) NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'voided')),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE sale_items (
+    id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    sale_id        BIGINT NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+    product_id     BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    quantity       NUMERIC(14,4) NOT NULL CHECK (quantity > 0),
+    unit_price     NUMERIC(14,2) NOT NULL CHECK (unit_price >= 0),
+    discount_pct   NUMERIC(5,2)  NOT NULL DEFAULT 0 CHECK (discount_pct BETWEEN 0 AND 100),
+    subtotal       NUMERIC(14,2) GENERATED ALWAYS AS
+        (round(quantity * unit_price * (1 - discount_pct / 100.0), 2)) STORED
+);
+
+-- ---------------------------------------------------------------------
+-- Transferencias entre sucursales (3.4) y logística (3.5)
+-- ---------------------------------------------------------------------
+
+CREATE TABLE transfers (
+    id                       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    transfer_number          VARCHAR(30) NOT NULL UNIQUE,
+    origin_branch_id         BIGINT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    destination_branch_id    BIGINT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    requested_by             BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    status                   VARCHAR(20) NOT NULL DEFAULT 'requested' CHECK (status IN (
+        'requested', 'preparing', 'in_transit',
+        'fully_received', 'partially_received', 'cancelled'
+    )),
+    urgency                  VARCHAR(10) NOT NULL DEFAULT 'medium' CHECK (urgency IN ('low', 'medium', 'high')),
+    route_priority           VARCHAR(10) CHECK (route_priority IN ('low', 'medium', 'high')),
+    carrier                  VARCHAR(150),
+    shipping_cost            NUMERIC(14,2) CHECK (shipping_cost IS NULL OR shipping_cost >= 0),
+    request_date             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    estimated_ship_date      TIMESTAMPTZ,
+    actual_ship_date         TIMESTAMPTZ,
+    estimated_arrival_date   TIMESTAMPTZ,
+    actual_arrival_date      TIMESTAMPTZ,
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (origin_branch_id <> destination_branch_id)
+);
+
+CREATE TABLE transfer_items (
+    id                   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    transfer_id          BIGINT NOT NULL REFERENCES transfers(id) ON DELETE CASCADE,
+    product_id           BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    requested_quantity   NUMERIC(14,4) NOT NULL CHECK (requested_quantity > 0),
+    shipped_quantity     NUMERIC(14,4) NOT NULL DEFAULT 0 CHECK (shipped_quantity >= 0),
+    received_quantity    NUMERIC(14,4) NOT NULL DEFAULT 0 CHECK (received_quantity >= 0),
+    -- Diferencia positiva = faltante detectado en la recepción parcial (sección 3.4, paso 5).
+    difference           NUMERIC(14,4) GENERATED ALWAYS AS (shipped_quantity - received_quantity) STORED
+);
+
+-- Historial de estados de una transferencia: soporta "visualizar el estado de
+-- cada transferencia en curso" y el cálculo de tiempos estimados vs. reales (3.5).
+CREATE TABLE transfer_events (
+    id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    transfer_id    BIGINT NOT NULL REFERENCES transfers(id) ON DELETE CASCADE,
+    status         VARCHAR(20) NOT NULL CHECK (status IN (
+        'requested', 'preparing', 'in_transit',
+        'fully_received', 'partially_received', 'cancelled'
+    )),
+    event_date     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    notes          TEXT,
+    recorded_by    BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT
+);

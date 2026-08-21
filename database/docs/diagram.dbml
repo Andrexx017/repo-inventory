@@ -1,0 +1,320 @@
+// Diagrama entidad-relación — Sistema de Inventario Multi-Sucursal
+// Refleja database/init/01-schema.sql y 02-indexes.sql.
+// Módulos obligatorios cubiertos: 3.1 Inventario, 3.2 Compras, 3.3 Ventas,
+// 3.4 Transferencias, 3.5 Logística. La funcionalidad adicional (sección 4)
+// queda pendiente de definir.
+// Convención de idioma del proyecto: nombres en inglés, notas en español.
+
+Project inventory_system {
+  database_type: 'PostgreSQL'
+  Note: 'Sistema de gestión de inventario multi-sucursal — OptiPlant Consultores'
+}
+
+Enum user_role {
+  general_admin [note: 'Configuración, usuarios, sucursales, visibilidad total']
+  branch_manager [note: 'Supervisa su sucursal, aprueba transferencias, consulta reportes']
+  inventory_operator [note: 'Ingresos, retiros, solicita transferencias, registra ventas/compras']
+}
+
+Enum movement_type {
+  purchase_in
+  return_in
+  adjustment_in
+  transfer_in
+  sale_out
+  shrinkage_out
+  adjustment_out
+  transfer_out
+}
+
+Enum reference_type {
+  purchase_order
+  sale
+  transfer
+  manual_adjustment
+}
+
+Enum purchase_order_status {
+  draft
+  sent
+  confirmed
+  partially_received
+  fully_received
+  cancelled
+}
+
+Enum sale_status {
+  confirmed
+  voided
+}
+
+Enum transfer_status {
+  requested
+  preparing
+  in_transit
+  fully_received
+  partially_received
+  cancelled
+}
+
+Enum priority_level {
+  low
+  medium
+  high
+}
+
+// ---------------------------------------------------------------------
+// Sucursales y usuarios
+// ---------------------------------------------------------------------
+
+Table branches {
+  id          bigint    [pk, increment]
+  code        varchar   [not null, unique]
+  name        varchar   [not null]
+  address     text
+  city        varchar
+  phone       varchar
+  active      boolean   [not null, default: true]
+  created_at  timestamptz [not null, default: `now()`]
+}
+
+Table users {
+  id             bigint    [pk, increment]
+  branch_id      bigint    [ref: > branches.id, note: 'Nulo solo para general_admin']
+  name           varchar   [not null]
+  email          varchar   [not null, unique]
+  password_hash  text      [not null]
+  role           user_role [not null]
+  active         boolean   [not null, default: true]
+  created_at     timestamptz [not null, default: `now()`]
+}
+
+// ---------------------------------------------------------------------
+// Catálogo de productos
+// ---------------------------------------------------------------------
+
+Table product_categories {
+  id          bigint  [pk, increment]
+  name        varchar [not null, unique]
+  description text
+}
+
+Table units_of_measure {
+  id           bigint  [pk, increment]
+  name         varchar [not null, unique]
+  abbreviation varchar [not null, unique]
+}
+
+Table products {
+  id               bigint  [pk, increment]
+  sku              varchar [not null, unique]
+  name             varchar [not null]
+  description      text
+  category_id      bigint  [ref: > product_categories.id]
+  base_unit_id     bigint  [not null, ref: > units_of_measure.id]
+  reference_price  numeric
+  active           boolean [not null, default: true]
+  created_at       timestamptz [not null, default: `now()`]
+}
+
+Table product_units {
+  id                 bigint  [pk, increment]
+  product_id         bigint  [not null, ref: > products.id]
+  unit_id            bigint  [not null, ref: > units_of_measure.id]
+  conversion_factor  numeric [not null, note: 'Relativo a la unidad base del producto']
+  is_purchase_unit   boolean [not null, default: false]
+  is_sale_unit       boolean [not null, default: false]
+
+  indexes {
+    (product_id, unit_id) [unique]
+  }
+}
+
+// ---------------------------------------------------------------------
+// Inventario y movimientos (3.1)
+// ---------------------------------------------------------------------
+
+Table inventory {
+  id                     bigint  [pk, increment]
+  branch_id              bigint  [not null, ref: > branches.id]
+  product_id             bigint  [not null, ref: > products.id]
+  current_quantity       numeric [not null, default: 0]
+  minimum_stock          numeric [not null, default: 0]
+  weighted_average_cost  numeric [not null, default: 0]
+  updated_at             timestamptz [not null, default: `now()`]
+
+  indexes {
+    (branch_id, product_id) [unique]
+  }
+
+  Note: 'Stock por sucursal; costo promedio ponderado recalculado por el backend en cada ingreso con costo'
+}
+
+Table inventory_movements {
+  id                    bigint         [pk, increment]
+  branch_id             bigint         [not null, ref: > branches.id]
+  product_id            bigint         [not null, ref: > products.id]
+  movement_type         movement_type  [not null]
+  quantity              numeric        [not null]
+  unit_cost             numeric
+  reason                text           [not null]
+  responsible_user_id   bigint         [not null, ref: > users.id]
+  reference_type        reference_type
+  reference_id          bigint         [note: 'Referencia polimórfica — sin FK física, la tabla varía según reference_type']
+  movement_date         timestamptz    [not null, default: `now()`]
+  created_at            timestamptz    [not null, default: `now()`]
+
+  Note: 'Trazabilidad obligatoria: fecha, responsable, motivo y cantidad de cada ingreso/retiro'
+}
+
+// ---------------------------------------------------------------------
+// Compras (3.2)
+// ---------------------------------------------------------------------
+
+Table suppliers {
+  id           bigint  [pk, increment]
+  name         varchar [not null]
+  tax_id       varchar [unique]
+  contact_name varchar
+  phone        varchar
+  email        varchar
+  address      text
+  active       boolean [not null, default: true]
+  created_at   timestamptz [not null, default: `now()`]
+}
+
+Table purchase_orders {
+  id                 bigint                 [pk, increment]
+  order_number       varchar                [not null, unique]
+  supplier_id        bigint                 [not null, ref: > suppliers.id]
+  branch_id          bigint                 [not null, ref: > branches.id]
+  status             purchase_order_status  [not null, default: 'draft']
+  order_date         timestamptz            [not null, default: `now()`]
+  payment_term_days  integer
+  subtotal           numeric                [not null, default: 0]
+  total_discount     numeric                [not null, default: 0]
+  total              numeric                [not null, default: 0]
+  created_by         bigint                 [not null, ref: > users.id]
+  created_at         timestamptz            [not null, default: `now()`]
+}
+
+Table purchase_order_items {
+  id                  bigint  [pk, increment]
+  purchase_order_id   bigint  [not null, ref: > purchase_orders.id]
+  product_id          bigint  [not null, ref: > products.id]
+  quantity            numeric [not null]
+  unit_price          numeric [not null]
+  discount_pct        numeric [not null, default: 0]
+  subtotal            numeric [note: 'Columna generada: quantity * unit_price * (1 - discount_pct/100)']
+}
+
+Table purchase_receipts {
+  id                 bigint      [pk, increment]
+  purchase_order_id  bigint      [not null, ref: > purchase_orders.id]
+  receipt_date       timestamptz [not null, default: `now()`]
+  received_by        bigint      [not null, ref: > users.id]
+  is_complete        boolean     [not null, default: false]
+  notes              text
+}
+
+Table purchase_receipt_items {
+  id                       bigint  [pk, increment]
+  receipt_id               bigint  [not null, ref: > purchase_receipts.id]
+  purchase_order_item_id   bigint  [not null, ref: > purchase_order_items.id]
+  received_quantity        numeric [not null]
+}
+
+// ---------------------------------------------------------------------
+// Ventas (3.3)
+// ---------------------------------------------------------------------
+
+Table price_lists {
+  id          bigint  [pk, increment]
+  name        varchar [not null]
+  description text
+  active      boolean [not null, default: true]
+  start_date  date
+  end_date    date
+}
+
+Table price_list_items {
+  id             bigint  [pk, increment]
+  price_list_id  bigint  [not null, ref: > price_lists.id]
+  product_id     bigint  [not null, ref: > products.id]
+  price          numeric [not null]
+
+  indexes {
+    (price_list_id, product_id) [unique]
+  }
+}
+
+Table sales {
+  id              bigint      [pk, increment]
+  sale_number     varchar     [not null, unique]
+  branch_id       bigint      [not null, ref: > branches.id]
+  price_list_id   bigint      [ref: > price_lists.id]
+  seller_id       bigint      [not null, ref: > users.id]
+  customer_name   varchar
+  sale_date       timestamptz [not null, default: `now()`]
+  subtotal        numeric     [not null, default: 0]
+  total_discount  numeric     [not null, default: 0]
+  total           numeric     [not null, default: 0]
+  status          sale_status [not null, default: 'confirmed']
+  created_at      timestamptz [not null, default: `now()`]
+}
+
+Table sale_items {
+  id             bigint  [pk, increment]
+  sale_id        bigint  [not null, ref: > sales.id]
+  product_id     bigint  [not null, ref: > products.id]
+  quantity       numeric [not null]
+  unit_price     numeric [not null]
+  discount_pct   numeric [not null, default: 0]
+  subtotal       numeric [note: 'Columna generada: quantity * unit_price * (1 - discount_pct/100)']
+}
+
+// ---------------------------------------------------------------------
+// Transferencias entre sucursales (3.4) y logística (3.5)
+// ---------------------------------------------------------------------
+
+Table transfers {
+  id                       bigint            [pk, increment]
+  transfer_number          varchar           [not null, unique]
+  origin_branch_id         bigint            [not null, ref: > branches.id]
+  destination_branch_id    bigint            [not null, ref: > branches.id]
+  requested_by             bigint            [not null, ref: > users.id]
+  status                   transfer_status   [not null, default: 'requested']
+  urgency                  priority_level    [not null, default: 'medium']
+  route_priority           priority_level
+  carrier                  varchar
+  shipping_cost            numeric
+  request_date             timestamptz       [not null, default: `now()`]
+  estimated_ship_date      timestamptz
+  actual_ship_date         timestamptz
+  estimated_arrival_date   timestamptz
+  actual_arrival_date      timestamptz
+  created_at               timestamptz       [not null, default: `now()`]
+
+  Note: 'Flujo de 5 pasos: solicitud → preparación → envío → recepción completa/parcial (sección 3.4)'
+}
+
+Table transfer_items {
+  id                    bigint  [pk, increment]
+  transfer_id           bigint  [not null, ref: > transfers.id]
+  product_id            bigint  [not null, ref: > products.id]
+  requested_quantity    numeric [not null]
+  shipped_quantity      numeric [not null, default: 0]
+  received_quantity     numeric [not null, default: 0]
+  difference            numeric [note: 'Columna generada: shipped_quantity - received_quantity (faltante si > 0)']
+}
+
+Table transfer_events {
+  id             bigint          [pk, increment]
+  transfer_id    bigint          [not null, ref: > transfers.id]
+  status         transfer_status [not null]
+  event_date     timestamptz     [not null, default: `now()`]
+  notes          text
+  recorded_by    bigint          [not null, ref: > users.id]
+
+  Note: 'Historial de estados — soporta seguimiento de tiempos estimados vs. reales (sección 3.5)'
+}
