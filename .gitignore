@@ -1,0 +1,6 @@
+screenshoots/
+requirements/
+.env
+
+backend/obj/
+backend/bin/
