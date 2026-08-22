@@ -10,12 +10,6 @@ Project inventory_system {
   Note: 'Sistema de gestión de inventario multi-sucursal — OptiPlant Consultores'
 }
 
-Enum user_role {
-  general_admin [note: 'Configuración, usuarios, sucursales, visibilidad total']
-  branch_manager [note: 'Supervisa su sucursal, aprueba transferencias, consulta reportes']
-  inventory_operator [note: 'Ingresos, retiros, solicita transferencias, registra ventas/compras']
-}
-
 Enum movement_type {
   purchase_in
   return_in
@@ -76,17 +70,30 @@ Table branches {
   phone       varchar
   active      boolean   [not null, default: true]
   created_at  timestamptz [not null, default: `now()`]
+
+  Note: 'Tabla maestra'
+}
+
+Table roles {
+  id          bigint  [pk, increment]
+  code        varchar [not null, unique]
+  name        varchar [not null]
+  description text
+
+  Note: 'Tabla maestra — catálogo cerrado (sección 6.2): general_admin, branch_manager, inventory_operator'
 }
 
 Table users {
   id             bigint    [pk, increment]
   branch_id      bigint    [ref: > branches.id, note: 'Nulo solo para general_admin']
+  role_id        bigint    [not null, ref: > roles.id]
   name           varchar   [not null]
   email          varchar   [not null, unique]
   password_hash  text      [not null]
-  role           user_role [not null]
   active         boolean   [not null, default: true]
   created_at     timestamptz [not null, default: `now()`]
+
+  Note: 'Tabla maestra'
 }
 
 // ---------------------------------------------------------------------
@@ -97,12 +104,16 @@ Table product_categories {
   id          bigint  [pk, increment]
   name        varchar [not null, unique]
   description text
+
+  Note: 'Tabla maestra'
 }
 
 Table units_of_measure {
   id           bigint  [pk, increment]
   name         varchar [not null, unique]
   abbreviation varchar [not null, unique]
+
+  Note: 'Tabla maestra'
 }
 
 Table products {
@@ -115,6 +126,8 @@ Table products {
   reference_price  numeric
   active           boolean [not null, default: true]
   created_at       timestamptz [not null, default: `now()`]
+
+  Note: 'Tabla maestra'
 }
 
 Table product_units {
@@ -128,6 +141,8 @@ Table product_units {
   indexes {
     (product_id, unit_id) [unique]
   }
+
+  Note: 'Tabla de detalle de products'
 }
 
 // ---------------------------------------------------------------------
@@ -147,7 +162,7 @@ Table inventory {
     (branch_id, product_id) [unique]
   }
 
-  Note: 'Stock por sucursal; costo promedio ponderado recalculado por el backend en cada ingreso con costo'
+  Note: 'Tabla maestra (estado actual, no histórico); costo promedio ponderado recalculado por el backend en cada ingreso con costo'
 }
 
 Table inventory_movements {
@@ -164,7 +179,7 @@ Table inventory_movements {
   movement_date         timestamptz    [not null, default: `now()`]
   created_at            timestamptz    [not null, default: `now()`]
 
-  Note: 'Trazabilidad obligatoria: fecha, responsable, motivo y cantidad de cada ingreso/retiro'
+  Note: 'Tabla de detalle (bitácora); trazabilidad obligatoria: fecha, responsable, motivo y cantidad de cada ingreso/retiro'
 }
 
 // ---------------------------------------------------------------------
@@ -181,6 +196,8 @@ Table suppliers {
   address      text
   active       boolean [not null, default: true]
   created_at   timestamptz [not null, default: `now()`]
+
+  Note: 'Tabla maestra'
 }
 
 Table purchase_orders {
@@ -196,6 +213,8 @@ Table purchase_orders {
   total              numeric                [not null, default: 0]
   created_by         bigint                 [not null, ref: > users.id]
   created_at         timestamptz            [not null, default: `now()`]
+
+  Note: 'Tabla de cabecera'
 }
 
 Table purchase_order_items {
@@ -206,6 +225,8 @@ Table purchase_order_items {
   unit_price          numeric [not null]
   discount_pct        numeric [not null, default: 0]
   subtotal            numeric [note: 'Columna generada: quantity * unit_price * (1 - discount_pct/100)']
+
+  Note: 'Tabla de detalle de purchase_orders'
 }
 
 Table purchase_receipts {
@@ -215,6 +236,8 @@ Table purchase_receipts {
   received_by        bigint      [not null, ref: > users.id]
   is_complete        boolean     [not null, default: false]
   notes              text
+
+  Note: 'Tabla de cabecera'
 }
 
 Table purchase_receipt_items {
@@ -222,6 +245,8 @@ Table purchase_receipt_items {
   receipt_id               bigint  [not null, ref: > purchase_receipts.id]
   purchase_order_item_id   bigint  [not null, ref: > purchase_order_items.id]
   received_quantity        numeric [not null]
+
+  Note: 'Tabla de detalle de purchase_receipts'
 }
 
 // ---------------------------------------------------------------------
@@ -235,6 +260,8 @@ Table price_lists {
   active      boolean [not null, default: true]
   start_date  date
   end_date    date
+
+  Note: 'Tabla maestra'
 }
 
 Table price_list_items {
@@ -246,6 +273,8 @@ Table price_list_items {
   indexes {
     (price_list_id, product_id) [unique]
   }
+
+  Note: 'Tabla de detalle de price_lists'
 }
 
 Table sales {
@@ -261,6 +290,8 @@ Table sales {
   total           numeric     [not null, default: 0]
   status          sale_status [not null, default: 'confirmed']
   created_at      timestamptz [not null, default: `now()`]
+
+  Note: 'Tabla de cabecera'
 }
 
 Table sale_items {
@@ -271,6 +302,8 @@ Table sale_items {
   unit_price     numeric [not null]
   discount_pct   numeric [not null, default: 0]
   subtotal       numeric [note: 'Columna generada: quantity * unit_price * (1 - discount_pct/100)']
+
+  Note: 'Tabla de detalle de sales'
 }
 
 // ---------------------------------------------------------------------
@@ -295,7 +328,7 @@ Table transfers {
   actual_arrival_date      timestamptz
   created_at               timestamptz       [not null, default: `now()`]
 
-  Note: 'Flujo de 5 pasos: solicitud → preparación → envío → recepción completa/parcial (sección 3.4)'
+  Note: 'Tabla de cabecera; flujo de 5 pasos: solicitud → preparación → envío → recepción completa/parcial (sección 3.4)'
 }
 
 Table transfer_items {
@@ -306,6 +339,8 @@ Table transfer_items {
   shipped_quantity      numeric [not null, default: 0]
   received_quantity     numeric [not null, default: 0]
   difference            numeric [note: 'Columna generada: shipped_quantity - received_quantity (faltante si > 0)']
+
+  Note: 'Tabla de detalle de transfers'
 }
 
 Table transfer_events {
@@ -316,5 +351,5 @@ Table transfer_events {
   notes          text
   recorded_by    bigint          [not null, ref: > users.id]
 
-  Note: 'Historial de estados — soporta seguimiento de tiempos estimados vs. reales (sección 3.5)'
+  Note: 'Tabla de detalle de transfers; historial de estados — soporta seguimiento de tiempos estimados vs. reales (sección 3.5)'
 }

@@ -21,6 +21,24 @@
 
 ---
 
+## Consumo de autenticación (JWT emitido por el backend)
+
+**Contexto:** el backend autentica con JWT Bearer (ver `backend/docs/decisions.md`). El frontend necesita guardar ese token, adjuntarlo en cada llamada a la API y ocultar/proteger rutas según el rol del usuario, sin poner lógica de negocio en el cliente (regla obligatoria de la sección 5 del PDF — aquí solo se decide *dónde vive el token*, la validación real de permisos siempre ocurre en el backend).
+
+**Decisión:** el token se guarda en memoria (estado de React vía Context/Provider), no en `localStorage`. Un cliente HTTP centralizado (wrapper de `fetch`) añade el header `Authorization: Bearer <token>` a cada request y captura respuestas `401` para forzar logout. Rutas protegidas con un componente `ProtectedRoute` que redirige a `/login` si no hay sesión, y oculta/deshabilita opciones de UI según `role` — solo como cortesía visual, ya que el backend vuelve a validar cada permiso.
+
+**Justificación:**
+- Guardar el token en memoria evita exponerlo a un ataque XSS que lea `localStorage` (cualquier script inyectado en la página tiene acceso a `localStorage`, pero no a una variable de estado de React fuera del bundle).
+- Es coherente con la regla de "no lógica de negocio en el cliente": el frontend solo decide qué *mostrar*, no qué *permitir* — cada endpoint valida el rol/sucursal igual aunque alguien fuerce la UI.
+
+**Alternativas consideradas:**
+- `localStorage` — más simple (sobrevive a recargar la página) pero más expuesto a robo de token vía XSS; descartado por ser una prueba técnica donde se evalúa también la solidez del diseño de seguridad.
+- Cookies `httpOnly` gestionadas por el backend — más seguras, pero exigen que backend y frontend compartan estrategia de dominio/CORS con credenciales, lo que añade complejidad de configuración en desarrollo (orígenes distintos) que no se justifica para el alcance de este proyecto.
+
+**Consecuencias:** al recargar la página se pierde la sesión en memoria (no hay persistencia entre refrescos); se acepta como trade-off razonable para el alcance de la prueba y queda anotado como mejora futura implementar refresh token + almacenamiento más persistente si el tiempo lo permite.
+
+---
+
 ## Contenedorización del frontend
 
 **Decisión:** el frontend se empaqueta como imagen Docker independiente (build de Vite servido por un servidor estático), orquestada junto a `backend` y `postgres` en `docker-compose.yml`.

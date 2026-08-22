@@ -8,8 +8,9 @@
 -- frecuentes que no quedan indexados por esas restricciones.
 -- =====================================================================
 
--- Usuarios por sucursal (listados de operadores/gerentes por sede).
+-- Usuarios por sucursal (listados de operadores/gerentes por sede) y por rol.
 CREATE INDEX idx_users_branch ON users (branch_id);
+CREATE INDEX idx_users_role ON users (role_id);
 
 -- Catálogo: filtros habituales por categoría/unidad base.
 CREATE INDEX idx_products_category ON products (category_id);

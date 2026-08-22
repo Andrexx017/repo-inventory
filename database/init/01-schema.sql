@@ -7,12 +7,20 @@
 --
 -- Convención de idioma del proyecto: nombres de tablas/columnas en inglés;
 -- comentarios y documentación en español.
+--
+-- Convención de clasificación: cada tabla se etiqueta según su rol en el modelo.
+--   [MAESTRA]   catálogo de referencia, independiente, no cuelga de un documento
+--               transaccional (roles, sucursales, categorías, proveedores...).
+--   [CABECERA]  encabezado de una transacción (orden de compra, venta, transferencia).
+--   [DETALLE]   líneas o eventos que dependen de una cabecera o de una maestra y
+--               no tienen sentido por sí solas (items, movimientos, eventos).
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- Sucursales y usuarios
+-- Tablas maestras: sucursales, roles y usuarios
 -- ---------------------------------------------------------------------
 
+-- [MAESTRA]
 CREATE TABLE branches (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     code        VARCHAR(20)  NOT NULL UNIQUE,
@@ -24,39 +32,58 @@ CREATE TABLE branches (
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+-- [MAESTRA]
 -- Roles fijos según sección 6.2 del análisis (Administrador general, Gerente de
--- sucursal, Operador de inventario). Se modela como CHECK en vez de tabla propia
--- porque el conjunto de roles es cerrado y no crece por datos.
+-- sucursal, Operador de inventario). Antes se modelaba como CHECK sobre users.role
+-- porque el conjunto es cerrado; se pasa a tabla propia para poder mostrar
+-- nombre/descripción en UI y reportes sin hardcodear texto en el backend, y para
+-- no tener que migrar el esquema si el análisis agrega un rol más adelante.
+CREATE TABLE roles (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    code        VARCHAR(30)  NOT NULL UNIQUE,
+    name        VARCHAR(100) NOT NULL,
+    description TEXT
+);
+
+INSERT INTO roles (code, name, description) VALUES
+    ('general_admin',      'Administrador general',  'Configuración, usuarios, sucursales, visibilidad total.'),
+    ('branch_manager',     'Gerente de sucursal',     'Supervisa su sucursal, aprueba transferencias, consulta reportes.'),
+    ('inventory_operator', 'Operador de inventario',  'Ingresos, retiros, solicita transferencias, registra ventas/compras.');
+
+-- [MAESTRA]
 CREATE TABLE users (
     id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     branch_id      BIGINT REFERENCES branches(id) ON DELETE RESTRICT,
+    role_id        BIGINT NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
     name           VARCHAR(150) NOT NULL,
     email          VARCHAR(150) NOT NULL UNIQUE,
     password_hash  TEXT         NOT NULL,
-    role           VARCHAR(30)  NOT NULL
-        CHECK (role IN ('general_admin', 'branch_manager', 'inventory_operator')),
     active         BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    -- Solo el administrador general tiene visibilidad total sin atarse a una sucursal.
-    CHECK (role = 'general_admin' OR branch_id IS NOT NULL)
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+    -- Regla "solo el administrador general puede no tener sucursal": Postgres no
+    -- permite CHECK con subconsulta a otra tabla (roles), así que queda a cargo
+    -- del backend, igual que los totales agregados de purchase_orders/sales.
 );
 
 -- ---------------------------------------------------------------------
 -- Catálogo de productos
 -- ---------------------------------------------------------------------
 
+-- [MAESTRA]
 CREATE TABLE product_categories (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name        VARCHAR(100) NOT NULL UNIQUE,
     description TEXT
 );
 
+-- [MAESTRA]
 CREATE TABLE units_of_measure (
     id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name         VARCHAR(50) NOT NULL UNIQUE,
     abbreviation VARCHAR(10) NOT NULL UNIQUE
 );
 
+-- [MAESTRA]
 CREATE TABLE products (
     id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     sku              VARCHAR(50)  NOT NULL UNIQUE,
@@ -69,6 +96,7 @@ CREATE TABLE products (
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+-- [DETALLE de products]
 -- Múltiples unidades de medida por producto (sección 3.1), con factor de
 -- conversión respecto a la unidad base del producto.
 CREATE TABLE product_units (
@@ -85,6 +113,7 @@ CREATE TABLE product_units (
 -- Inventario y movimientos (3.1) — trazabilidad obligatoria
 -- ---------------------------------------------------------------------
 
+-- [MAESTRA] (estado actual, no histórico)
 -- Stock por sucursal. weighted_average_cost se recalcula desde el backend
 -- en cada ingreso con costo (compra), según sección 3.2.
 CREATE TABLE inventory (
@@ -98,6 +127,7 @@ CREATE TABLE inventory (
     UNIQUE (branch_id, product_id)
 );
 
+-- [DETALLE] (bitácora, no cuelga de una única cabecera)
 -- Historial auditable de todo ingreso/retiro (fecha, responsable, motivo,
 -- cantidad — requisito explícito de la sección 3.1).
 -- reference_type/reference_id apuntan de forma polimórfica al documento que
@@ -125,6 +155,7 @@ CREATE TABLE inventory_movements (
 -- Compras (3.2)
 -- ---------------------------------------------------------------------
 
+-- [MAESTRA]
 CREATE TABLE suppliers (
     id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name         VARCHAR(200) NOT NULL,
@@ -137,6 +168,7 @@ CREATE TABLE suppliers (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- [CABECERA]
 CREATE TABLE purchase_orders (
     id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     order_number       VARCHAR(30) NOT NULL UNIQUE,
@@ -157,6 +189,7 @@ CREATE TABLE purchase_orders (
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- [DETALLE de purchase_orders]
 CREATE TABLE purchase_order_items (
     id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     purchase_order_id BIGINT NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
@@ -168,6 +201,7 @@ CREATE TABLE purchase_order_items (
         (round(quantity * unit_price * (1 - discount_pct / 100.0), 2)) STORED
 );
 
+-- [CABECERA]
 CREATE TABLE purchase_receipts (
     id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     purchase_order_id  BIGINT NOT NULL REFERENCES purchase_orders(id) ON DELETE RESTRICT,
@@ -177,6 +211,7 @@ CREATE TABLE purchase_receipts (
     notes              TEXT
 );
 
+-- [DETALLE de purchase_receipts]
 CREATE TABLE purchase_receipt_items (
     id                      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     receipt_id              BIGINT NOT NULL REFERENCES purchase_receipts(id) ON DELETE CASCADE,
@@ -188,6 +223,7 @@ CREATE TABLE purchase_receipt_items (
 -- Ventas (3.3)
 -- ---------------------------------------------------------------------
 
+-- [MAESTRA]
 CREATE TABLE price_lists (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name        VARCHAR(100) NOT NULL,
@@ -198,6 +234,7 @@ CREATE TABLE price_lists (
     CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
 );
 
+-- [DETALLE de price_lists]
 CREATE TABLE price_list_items (
     id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     price_list_id  BIGINT NOT NULL REFERENCES price_lists(id) ON DELETE CASCADE,
@@ -206,6 +243,7 @@ CREATE TABLE price_list_items (
     UNIQUE (price_list_id, product_id)
 );
 
+-- [CABECERA]
 CREATE TABLE sales (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     sale_number     VARCHAR(30) NOT NULL UNIQUE,
@@ -222,6 +260,7 @@ CREATE TABLE sales (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- [DETALLE de sales]
 CREATE TABLE sale_items (
     id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     sale_id        BIGINT NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
@@ -237,6 +276,7 @@ CREATE TABLE sale_items (
 -- Transferencias entre sucursales (3.4) y logística (3.5)
 -- ---------------------------------------------------------------------
 
+-- [CABECERA]
 CREATE TABLE transfers (
     id                       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     transfer_number          VARCHAR(30) NOT NULL UNIQUE,
@@ -260,6 +300,7 @@ CREATE TABLE transfers (
     CHECK (origin_branch_id <> destination_branch_id)
 );
 
+-- [DETALLE de transfers]
 CREATE TABLE transfer_items (
     id                   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     transfer_id          BIGINT NOT NULL REFERENCES transfers(id) ON DELETE CASCADE,
@@ -271,6 +312,7 @@ CREATE TABLE transfer_items (
     difference           NUMERIC(14,4) GENERATED ALWAYS AS (shipped_quantity - received_quantity) STORED
 );
 
+-- [DETALLE de transfers]
 -- Historial de estados de una transferencia: soporta "visualizar el estado de
 -- cada transferencia en curso" y el cálculo de tiempos estimados vs. reales (3.5).
 CREATE TABLE transfer_events (

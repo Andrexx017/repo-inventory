@@ -28,3 +28,30 @@
 **Justificación:** aísla el estado de la base de datos del ciclo de vida de los contenedores de aplicación y cumple el requisito de arranque con un solo comando (`docker compose up`).
 
 **Nota de seguridad pendiente:** `docker-compose.yml` define hoy `POSTGRES_PASSWORD` en texto plano dentro del archivo versionado. Antes de la entrega conviene moverlo a variables de entorno vía `.env` (excluido de git) o Docker secrets, para no exponer credenciales en el repositorio.
+
+---
+
+## Roles como tabla propia (`roles`)
+
+**Contexto:** los tres roles del actor obligatorio (sección 6.2 del análisis: Administrador general, Gerente de sucursal, Operador de inventario) se modelaron inicialmente como un `CHECK` sobre `users.role`, por ser un conjunto cerrado que no crece por datos.
+
+**Decisión:** se reemplaza el `CHECK` por una tabla maestra `roles` (`id`, `code`, `name`, `description`), referenciada desde `users.role_id` como FK, y sembrada con los 3 roles vía `INSERT` en `01-schema.sql`.
+
+**Justificación:**
+- El backend necesita mostrar nombre y descripción de cada rol en UI/reportes (sección 6.2); con `CHECK` ese texto quedaría hardcodeado en el código en vez de en la base de datos.
+- Una tabla consultable permite validar y listar roles sin duplicar el catálogo en el backend, y evita una migración de esquema si el análisis final agrega un cuarto rol.
+- Postgres no permite `CHECK` con subconsulta a otra tabla, así que la regla "solo `general_admin` puede no tener sucursal" ya no se puede expresar como constraint de base de datos entre `users` y `roles`; queda a cargo del backend, siguiendo el mismo patrón usado para los totales agregados de `purchase_orders`/`sales`.
+
+**Alternativas consideradas:**
+- Mantener el `CHECK`: descartado por las razones anteriores — no es solo un tema de crecimiento del conjunto, sino de necesitar metadatos (nombre, descripción) por rol.
+
+---
+
+## Convención: tablas maestras vs. tablas de detalle/cabecera
+
+**Decisión:** cada `CREATE TABLE` en `01-schema.sql` (y cada `Table` en `diagram.dbml`) se etiqueta según su rol en el modelo:
+- **Maestra** — catálogo de referencia independiente (`roles`, `branches`, `users`, `product_categories`, `units_of_measure`, `products`, `suppliers`, `price_lists`, `inventory`).
+- **Cabecera** — encabezado de una transacción (`purchase_orders`, `purchase_receipts`, `sales`, `transfers`).
+- **Detalle** — líneas o eventos que dependen de una cabecera o de una maestra y no tienen sentido por sí solos (`product_units`, `inventory_movements`, `purchase_order_items`, `purchase_receipt_items`, `price_list_items`, `sale_items`, `transfer_items`, `transfer_events`).
+
+**Justificación:** hace explícito en el propio esquema qué tablas son catálogos reutilizables y cuáles son líneas dependientes de un documento, sin necesidad de inferirlo de las relaciones FK — útil tanto para el diagrama E-R (sección 7) como para justificar el diseño ante evaluación (sección 8.2).
