@@ -189,7 +189,11 @@ Table stock_alerts {
   resolved_at           timestamptz
   notified_at           timestamptz
 
-  Note: 'Tabla de detalle de inventory — funcionalidad adicional (sección 4): alertas inteligentes de stock'
+  indexes {
+    (branch_id, product_id, alert_type) [unique, note: 'Parcial: solo WHERE status = pending — evita alertas abiertas duplicadas']
+  }
+
+  Note: 'Tabla de detalle de inventory — funcionalidad adicional (sección 4): alertas inteligentes de stock. CHECK: resolved_by/resolved_at obligatorios cuando status = resolved'
 }
 
 Table inventory_movements {

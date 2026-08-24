@@ -27,6 +27,12 @@ CREATE INDEX idx_inventory_low_stock ON inventory (branch_id) WHERE current_quan
 CREATE INDEX idx_stock_alerts_branch_status ON stock_alerts (branch_id, status);
 CREATE INDEX idx_stock_alerts_product ON stock_alerts (product_id);
 
+-- No es solo un índice de performance: es la regla de negocio "no puede haber
+-- dos alertas abiertas para el mismo producto/sucursal/tipo" hecha constraint.
+-- Al ser parcial (WHERE status = 'pending'), no molesta al historial de
+-- alertas ya resueltas, solo impide duplicar las que siguen abiertas.
+CREATE UNIQUE INDEX ux_stock_alerts_open ON stock_alerts (branch_id, product_id, alert_type) WHERE status = 'pending';
+
 -- Movimientos: trazabilidad por sucursal/producto, por fecha, por responsable
 -- y por documento de origen (compra/venta/transferencia/ajuste).
 CREATE INDEX idx_inventory_movements_branch_product ON inventory_movements (branch_id, product_id);

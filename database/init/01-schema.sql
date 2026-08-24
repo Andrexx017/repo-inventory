@@ -143,7 +143,12 @@ CREATE TABLE stock_alerts (
     triggered_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
     resolved_by          BIGINT REFERENCES users(id) ON DELETE RESTRICT,
     resolved_at          TIMESTAMPTZ,
-    notified_at          TIMESTAMPTZ
+    notified_at          TIMESTAMPTZ,
+    -- A diferencia de las reglas de reglas-negocio-criticas.md (que necesitan
+    -- consultar otra tabla), esta sí es de una sola fila: si status='resolved',
+    -- resolved_by/resolved_at deben quedar poblados. Postgres sí la puede
+    -- garantizar, así que se hace aquí y no se delega al backend.
+    CHECK (status = 'pending' OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL))
 );
 
 -- [DETALLE] (bitácora, no cuelga de una única cabecera)

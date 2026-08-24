@@ -58,6 +58,30 @@
 
 ---
 
+## Patrones de diseño del backend
+
+**Contexto:** RNF-08 (`requirements/documento-requisitos.md`) exige que el backend separe claramente las responsabilidades de negocio de las de acceso a datos, dejando explícitamente "patrón(es) de diseño a definir y justificar" como decisión de Fase 1. Las reglas de negocio críticas ya documentadas en `backend/docs/reglas-negocio-criticas.md` (validación de stock antes de vender, atomicidad de movimiento+inventario, cálculo de totales agregados, atomicidad de recepción de transferencias) marcan qué necesita resolver esa separación en la práctica.
+
+**Decisión:** arquitectura en capas (Controllers → Services → Repositories → `DbContext`/PostgreSQL) con los siguientes patrones:
+
+- **Repository Pattern, uno por agregado** (`IProductRepository`, `IInventoryRepository`, `ITransferRepository`, etc.), no un `Repository<T>` genérico. Cada repositorio expone solo los métodos que su dominio necesita (ej. `GetStockDisponibleAsync(branchId, productId)`), evitando que consultas específicas terminen filtrándose hacia Services o Controllers.
+- **Unit of Work vía `DbContext` de EF Core**, sin una clase `UnitOfWork` adicional: `DbContext` ya agrupa los cambios de un mismo `SaveChangesAsync()` en una sola operación atómica. Se usa una transacción explícita (`BeginTransactionAsync`) solo cuando una operación de negocio requiere más de un `SaveChangesAsync` en secuencia (ej. recepción de una orden de compra con múltiples líneas).
+- **Service Layer (Application Services)**, uno por módulo funcional (`VentaService`, `TransferenciaService`, `CompraService`, etc.) — aquí se implementan y se hacen cumplir las reglas de `reglas-negocio-criticas.md`; los Controllers quedan delgados (solo reciben el request, delegan al Service, devuelven la respuesta).
+- **DTOs** de request/response por endpoint, para no exponer directamente las entidades de EF Core ni acoplar el contrato de la API al esquema de base de datos.
+- **Dependency Injection** nativa de ASP.NET Core (`AddScoped<IInterfaz, Implementación>`) para Services y Repositories, habilitando pruebas unitarias con dobles simulados.
+- **Strategy Pattern**, acotado al caso que lo justifica: exportación de reportes (RF-35). Una interfaz `IReportExporter` con implementaciones `PdfReportExporter` y `ExcelReportExporter`, seleccionada en tiempo de ejecución según el formato pedido.
+
+**Justificación:** cada patrón resuelve un problema concreto ya identificado en este proyecto (no se adoptan "porque son buena práctica" en abstracto): Repository por agregado + DI habilitan pruebas unitarias de la lógica de negocio sin depender de PostgreSQL; Unit of Work vía `DbContext` cubre RNF-07 (atomicidad) sin reinventar algo que EF Core ya resuelve; Service Layer es el único lugar donde vive cada regla de `reglas-negocio-criticas.md`, evitando que se dupliquen o se salten (RNF-01: ninguna regla de negocio solo en el frontend); DTOs desacoplan el contrato de API del modelo de datos; Strategy resuelve limpiamente los dos formatos de reporte sin condicionales anidados.
+
+**Alternativas consideradas:**
+- **CQRS (con o sin MediatR)** — descartado: añade una capa de indirección real (comandos, queries, handlers separados) que no se justifica para una API CRUD-con-reglas de tamaño moderado sobre una única base de datos, dado el plazo de la prueba (RN-01).
+- **DDD táctico completo** (Aggregates, Value Objects, Domain Events, entidades ricas) — descartado por la misma razón de tiempo; es el siguiente nivel razonable después de Service Layer, pero excede lo que RNF-08 exige justificar para esta entrega.
+- **`Repository<T>` genérico único** — descartado: en la práctica no ahorra código real frente a un repositorio por agregado, y termina escondiendo consultas específicas de un módulo en un lugar que no les corresponde.
+
+**Consecuencias:** cada módulo funcional (Autenticación, Inventario, Compras, Ventas, Transferencias, Dashboard) sigue la misma estructura de carpetas: `Controllers/`, `Services/` (+ interfaz), `Repositories/` (+ interfaz), `Dtos/`. Las pruebas unitarias de Services pueden mockear `IXxxRepository` sin necesitar PostgreSQL levantado; las pruebas de integración de Repositories sí requieren la base de datos (vía el propio Docker Compose o un contenedor de pruebas).
+
+---
+
 ## Contenedorización del backend
 
 **Decisión:** el backend se empaqueta como imagen Docker independiente, orquestada junto a `postgres` y el frontend en `docker-compose.yml`.

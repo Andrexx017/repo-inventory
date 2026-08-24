@@ -14,6 +14,52 @@ services:
 
     volumes:
       - postgres_data:/var/lib/postgresql
+      # Scripts numerados de database/init/ se ejecutan una sola vez, en orden,
+      # solo si el volumen postgres_data está vacío (comportamiento de la imagen
+      # oficial). Si el esquema cambia sobre una base ya inicializada, no vuelve
+      # a correr solo con `docker compose up` — hay que recrear el volumen.
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend
+    restart: unless-stopped
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      # Fase 4 todavía no agrega EF Core/Npgsql al backend; esta variable queda
+      # lista para que, en cuanto se configure el DbContext, ASP.NET Core la
+      # lea automáticamente como ConnectionStrings:Default (doble guion bajo
+      # = separador de sección jerárquica en la configuración de .NET).
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+
+    ports:
+      - "5107:8080"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: "${VITE_API_URL}"
+    container_name: frontend
+    restart: unless-stopped
+
+    ports:
+      - "5173:80"
+
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:

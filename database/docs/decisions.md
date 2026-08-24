@@ -104,3 +104,9 @@
 **Consecuencias:**
 - El backend necesita un mecanismo para evaluar `stock_alerts` (al confirmar cada movimiento que afecta `inventory.current_quantity`, comparar contra `minimum_stock`/`maximum_stock` y crear la alerta si corresponde) y, opcionalmente, un job/servicio de envío de correo.
 - La elección de librería de generación de PDF/Excel para reportes queda pendiente de documentar en `backend/docs/decisions.md` cuando se implemente esa capa.
+
+**Confirmación de alcance (22/08/2026):** ambas quedan como plan firme (no como "una u otra según el tiempo") — el PDF exige mínimo 1, aquí se hacen 2 porque el costo incremental es bajo: "reportes exportables" no requiere ningún cambio de esquema, y "alertas inteligentes" ya tiene su modelo de datos completo y probado a nivel de restricciones. El único trabajo real pendiente para ambas está en el backend (Fase 4, punto 10) y el frontend (Fase 5).
+
+**Refinamiento posterior a `stock_alerts` (22/08/2026):** se agregaron dos restricciones que sí puede garantizar la propia base de datos (a diferencia de las reglas listadas en `backend/docs/reglas-negocio-criticas.md`, que necesitan consultar otra tabla):
+- `CHECK (status = 'pending' OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL))` — una alerta resuelta siempre debe registrar quién y cuándo la resolvió.
+- Índice único parcial `ux_stock_alerts_open (branch_id, product_id, alert_type) WHERE status = 'pending'` — impide que existan dos alertas abiertas para el mismo producto/sucursal/tipo (ej. varias ventas seguidas del mismo producto ya en alerta no deben generar alertas duplicadas), sin afectar el historial de alertas ya resueltas.
