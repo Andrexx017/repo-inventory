@@ -82,6 +82,54 @@
 
 ---
 
+## Convención de carpetas del backend — Screaming Architecture
+
+**Contexto:** con los patrones de diseño ya decididos (arriba), faltaba definir cómo se organizan físicamente en carpetas. El scaffold por defecto de ASP.NET Core agrupa por capa técnica (`Controllers/`, `Services/`, `Models/` a nivel raíz), lo que hace que la estructura del proyecto "grite" el framework en vez de gritar el dominio (Screaming Architecture, Robert C. Martin).
+
+**Decisión:** `backend/` se organiza en tres carpetas de primer nivel:
+
+- **`Modules/`** — un subdirectorio por módulo funcional, cada uno con sus propias `Controllers/`, `Services/`, `Repositories/`, `Dtos/` y `Entities/` (las clases de EF Core que mapean sus tablas): `Auth`, `Catalog`, `Inventory`, `Purchases`, `Sales`, `Transfers`, `Dashboard`, `Reports`.
+- **`Shared/`** — código transversal sin tabla propia: `Entities/` (clase base de entidad), `Exceptions/` (`DomainException`), `Extensions/`, `Middleware/` (manejo global de errores).
+- **`Infrastructure/`** — detalles técnicos, no reglas de negocio: `Persistence/` (`DbContext` y `Configurations/` de EF Core — sin `Migrations/`, ver nota abajo), `Auth/` (generación/validación de JWT, hashing), `Email/` (notificación de `stock_alerts.notified_at`).
+
+**EF Core en modo Database First, sin Migrations propias:** el esquema sigue siendo dueño exclusivo de `database/init/*.sql` (decisión ya tomada en `database/docs/decisions.md`, sección "Motor: PostgreSQL 18"). EF Core solo mapea las tablas ya creadas — las clases en `Entities/` de cada módulo y las `IEntityTypeConfiguration<T>` en `Infrastructure/Persistence/Configurations/` se escriben a mano para que coincidan con el schema existente. No se corre `dotnet ef migrations add`: tener dos mecanismos generando el esquema (scripts SQL + EF Core Migrations) crearía dos fuentes de verdad que pueden desincronizarse entre sí.
+
+Dos módulos no tienen `Repositories/` ni `Entities/` propias porque no tienen tablas propias — solo consultan datos de otros módulos inyectando sus repositorios:
+- **`Dashboard`** — KPIs de solo lectura cross-módulo (sección 3.6).
+- **`Reports`** — funcionalidad adicional de reportes exportables (RF-35); acá vive el `Services/Exporters/` con `IReportExporter`/`PdfReportExporter`/`ExcelReportExporter` (Strategy Pattern, ya decidido arriba).
+
+**`Transfers` absorbe Logística** (en vez de un módulo `Logistics` separado): el esquema no tiene tablas propias para logística — `route_priority`, `carrier`, `shipping_cost`, fechas estimadas/reales de envío y llegada viven todas en `transfers` (`database/init/01-schema.sql`). Separarlas en dos módulos duplicaría acceso a las mismas tablas sin un límite de responsabilidad real entre ambos.
+
+**Justificación:** agrupar por módulo de negocio (vertical) en vez de por capa técnica (horizontal) hace que el propio árbol de carpetas comunique qué hace el sistema, facilita ubicar todo el código de un módulo en un solo lugar al implementarlo (Fase 4 avanza módulo por módulo), y limita el radio de impacto de un cambio a la carpeta de ese módulo. No contradice los patrones ya decididos — es la forma de organizarlos físicamente, no un patrón adicional.
+
+**Alternativas consideradas:**
+- Mantener `Controllers/`, `Services/`, `Repositories/` como carpetas de primer nivel (organización por capa) — descartado: con 8 módulos, cada carpeta técnica terminaría con archivos de todos los módulos mezclados, dificultando ubicar el código de uno solo.
+- Módulo `Logistics` separado de `Transfers` — descartado por la razón de arriba (no hay tablas propias que lo justifiquen).
+
+**Consecuencias:** al implementar cada módulo en la Fase 4, el trabajo queda contenido en `Modules/<Módulo>/` casi en su totalidad; solo el `DbContext` (`Infrastructure/Persistence/`) necesita conocer las entidades de todos los módulos para registrarlas.
+
+---
+
+## Cadena de conexión local: `appsettings.Development.json` en vez de User Secrets
+
+**Contexto:** ASP.NET Core recomienda por defecto guardar secretos de desarrollo con **.NET User Secrets** (`dotnet user-secrets`), que los escribe fuera del repo, en un archivo del perfil de Windows (`%APPDATA%\Microsoft\UserSecrets\<guid>\secrets.json`). Es la opción más segura por defecto, pero tiene dos costos para este proyecto puntual: (1) es invisible dentro de la carpeta del proyecto — para mostrarla en la sustentación hay que correr un comando aparte (`dotnet user-secrets list`) en vez de simplemente abrir un archivo; (2) es específica de la máquina — si alguien clona el repo (evaluador incluido) y corre el backend en local sin Docker, no hereda los secretos y la conexión falla sin más contexto que ese.
+
+**Decisión:** el connection string local vive en `backend/appsettings.Development.json`, **dentro del proyecto**, pero ese archivo específico se excluye de git (`.gitignore`) y se commitea en su lugar `backend/appsettings.Development.json.example` como plantilla sin contraseña real — el mismo patrón que ya usa el proyecto con `.env`/`.env.example` a nivel raíz.
+
+**Justificación:**
+- Queda físicamente en la carpeta del proyecto, visible y fácil de abrir para explicar en la sustentación — a diferencia de User Secrets, que exige un comando de terminal para inspeccionarse.
+- La contraseña real nunca llega al repositorio: mismo nivel de seguridad que ya se aplicó en `docker-compose.yml` (variables de `.env`, no texto plano versionado).
+- Quien clona el repo encuentra el `.example`, entiende qué crear, y usa la misma contraseña que ya tiene en su propio `.env` para levantar Postgres — no hay una segunda fuente de verdad para la contraseña, solo dos archivos locales (`.env` y `appsettings.Development.json`) que deben coincidir.
+- Docker sigue sin cambios: el backend en contenedor sigue leyendo `ConnectionStrings__Default` como variable de entorno desde `docker-compose.yml` (`Host=postgres`), un mecanismo totalmente independiente de `appsettings.Development.json` (que solo aplica cuando se corre el backend suelto en local, fuera de Docker).
+
+**Alternativas consideradas:**
+- **.NET User Secrets** (enfoque inicial) — descartado por los motivos de contexto: más seguro en abstracto, pero peor para mostrar y para portabilidad entre máquinas en el contexto de una prueba técnica evaluada.
+- **Contraseña commiteada tal cual en `appsettings.Development.json`** — descartado: repetiría el mismo antipatrón de contraseña en texto plano en un archivo versionado que ya se corrigió en `docker-compose.yml`.
+
+**Consecuencias:** al clonar el repo por primera vez hay que crear `backend/appsettings.Development.json` a partir de `.example` (mismo paso que ya existe para `.env`) antes de poder correr el backend fuera de Docker — documentar este paso en el README raíz (Fase 7).
+
+---
+
 ## Contenedorización del backend
 
 **Decisión:** el backend se empaqueta como imagen Docker independiente, orquestada junto a `postgres` y el frontend en `docker-compose.yml`.

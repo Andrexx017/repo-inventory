@@ -1,6 +1,7 @@
 screenshoots/
 requirements/
 .env
+backend/appsettings.Development.json
 
 SUSTENTACION.md
 

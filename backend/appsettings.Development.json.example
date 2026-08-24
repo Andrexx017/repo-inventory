@@ -1,0 +1,11 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "Default": "Host=localhost;Port=5432;Database=inventory;Username=admin_inventory;Password=REEMPLAZAR_CON_LA_MISMA_PASSWORD_DEL_.ENV"
+  }
+}
