@@ -48,6 +48,16 @@
 
 ---
 
+## Sincronización entre sucursales (consecuencia de la base de datos central)
+
+**Contexto:** la decisión de arquitectura de sincronización (base de datos central única) queda documentada y justificada en `database/docs/decisions.md`. Aquí solo se registra su consecuencia directa sobre el backend.
+
+**Decisión:** el backend no implementa ningún mecanismo propio de sincronización entre sucursales (sin colas, sin eventos de dominio entre servicios, sin jobs de reconciliación). Las operaciones que afectan a más de una sucursal (ej. confirmar una transferencia) se implementan como una única transacción de EF Core (`DbContext` con transacción explícita cuando la operación toca más de una tabla o más de una sucursal), apoyándose en las garantías ACID de Postgres.
+
+**Consecuencia:** simplifica considerablemente el diseño de los módulos de Inventario y Transferencias — no hay que diseñar reintentos, resolución de conflictos ni consistencia eventual, solo transacciones bien delimitadas y manejo de errores estándar de base de datos.
+
+---
+
 ## Contenedorización del backend
 
 **Decisión:** el backend se empaqueta como imagen Docker independiente, orquestada junto a `postgres` y el frontend en `docker-compose.yml`.

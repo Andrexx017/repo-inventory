@@ -22,6 +22,11 @@ CREATE INDEX idx_product_units_product ON product_units (product_id);
 CREATE INDEX idx_inventory_product ON inventory (product_id);
 CREATE INDEX idx_inventory_low_stock ON inventory (branch_id) WHERE current_quantity <= minimum_stock;
 
+-- Alertas inteligentes (sección 4): listado de alertas pendientes por sucursal
+-- y por producto, y consulta del historial de una alerta ya resuelta.
+CREATE INDEX idx_stock_alerts_branch_status ON stock_alerts (branch_id, status);
+CREATE INDEX idx_stock_alerts_product ON stock_alerts (product_id);
+
 -- Movimientos: trazabilidad por sucursal/producto, por fecha, por responsable
 -- y por documento de origen (compra/venta/transferencia/ajuste).
 CREATE INDEX idx_inventory_movements_branch_product ON inventory_movements (branch_id, product_id);

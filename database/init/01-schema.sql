@@ -2,8 +2,9 @@
 -- Sistema de Inventario Multi-Sucursal — Schema inicial
 -- Cubre los módulos obligatorios 3.1 a 3.5 de requirements/analisis-requerimientos.md
 -- (inventario, compras, ventas, transferencias, logística).
--- La(s) tabla(s) de la funcionalidad adicional (sección 4) quedan pendientes
--- hasta que se defina cuál se implementa.
+-- Funcionalidad adicional (sección 4): alertas inteligentes de stock
+-- (tabla stock_alerts + inventory.maximum_stock). El módulo de reportes
+-- exportables no requiere tablas nuevas — ver database/docs/decisions.md.
 --
 -- Convención de idioma del proyecto: nombres de tablas/columnas en inglés;
 -- comentarios y documentación en español.
@@ -122,9 +123,27 @@ CREATE TABLE inventory (
     product_id             BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
     current_quantity       NUMERIC(14,4) NOT NULL DEFAULT 0 CHECK (current_quantity >= 0),
     minimum_stock          NUMERIC(14,4) NOT NULL DEFAULT 0 CHECK (minimum_stock >= 0),
+    maximum_stock          NUMERIC(14,4) CHECK (maximum_stock IS NULL OR maximum_stock >= minimum_stock),
     weighted_average_cost  NUMERIC(14,4) NOT NULL DEFAULT 0 CHECK (weighted_average_cost >= 0),
     updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (branch_id, product_id)
+);
+
+-- [DETALLE de inventory] — Funcionalidad adicional (sección 4): alertas inteligentes.
+-- Cada fila es una alerta disparada al cruzar minimum_stock/maximum_stock; el backend
+-- la crea al confirmar un movimiento que afecta inventory.current_quantity.
+CREATE TABLE stock_alerts (
+    id                   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    branch_id            BIGINT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    product_id           BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    alert_type           VARCHAR(15) NOT NULL CHECK (alert_type IN ('low_stock', 'high_stock')),
+    quantity_at_trigger  NUMERIC(14,4) NOT NULL CHECK (quantity_at_trigger >= 0),
+    threshold_value      NUMERIC(14,4) NOT NULL,
+    status               VARCHAR(15) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'resolved')),
+    triggered_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_by          BIGINT REFERENCES users(id) ON DELETE RESTRICT,
+    resolved_at          TIMESTAMPTZ,
+    notified_at          TIMESTAMPTZ
 );
 
 -- [DETALLE] (bitácora, no cuelga de una única cabecera)

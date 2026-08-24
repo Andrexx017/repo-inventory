@@ -1,9 +1,9 @@
 // Diagrama entidad-relación — Sistema de Inventario Multi-Sucursal
 // Refleja database/init/01-schema.sql y 02-indexes.sql.
 // Módulos obligatorios cubiertos: 3.1 Inventario, 3.2 Compras, 3.3 Ventas,
-// 3.4 Transferencias, 3.5 Logística. La funcionalidad adicional (sección 4)
-// queda pendiente de definir.
-// Convención de idioma del proyecto: nombres en inglés, notas en español.
+// 3.4 Transferencias, 3.5 Logística. Funcionalidad adicional (sección 4):
+// alertas inteligentes de stock (stock_alerts). El módulo de reportes
+// exportables (también elegido) no requiere tablas nuevas.
 
 Project inventory_system {
   database_type: 'PostgreSQL'
@@ -55,6 +55,16 @@ Enum priority_level {
   low
   medium
   high
+}
+
+Enum alert_type {
+  low_stock
+  high_stock
+}
+
+Enum alert_status {
+  pending
+  resolved
 }
 
 // ---------------------------------------------------------------------
@@ -155,6 +165,7 @@ Table inventory {
   product_id             bigint  [not null, ref: > products.id]
   current_quantity       numeric [not null, default: 0]
   minimum_stock          numeric [not null, default: 0]
+  maximum_stock          numeric [note: 'Umbral superior configurable (sección 4: alertas inteligentes); nulo = sin límite superior']
   weighted_average_cost  numeric [not null, default: 0]
   updated_at             timestamptz [not null, default: `now()`]
 
@@ -163,6 +174,22 @@ Table inventory {
   }
 
   Note: 'Tabla maestra (estado actual, no histórico); costo promedio ponderado recalculado por el backend en cada ingreso con costo'
+}
+
+Table stock_alerts {
+  id                    bigint        [pk, increment]
+  branch_id             bigint        [not null, ref: > branches.id]
+  product_id            bigint        [not null, ref: > products.id]
+  alert_type            alert_type    [not null]
+  quantity_at_trigger   numeric       [not null]
+  threshold_value       numeric       [not null]
+  status                alert_status  [not null, default: 'pending']
+  triggered_at          timestamptz   [not null, default: `now()`]
+  resolved_by           bigint        [ref: > users.id]
+  resolved_at           timestamptz
+  notified_at           timestamptz
+
+  Note: 'Tabla de detalle de inventory — funcionalidad adicional (sección 4): alertas inteligentes de stock'
 }
 
 Table inventory_movements {
