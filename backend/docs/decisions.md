@@ -26,7 +26,7 @@
 **Contexto:** el sistema exige 3 roles con permisos distintos (Administrador general, Gerente de sucursal, Operador de inventario — sección 6.2) y trazabilidad completa de cada movimiento con su responsable (sección 3.1). El esquema de base de datos ya modela esto en `users` (`role_id` FK a `roles`, `branch_id` FK a `branches`, `password_hash`), por lo que la estrategia de auth debe apoyarse en esas columnas sin rediseñar el modelo de datos.
 
 **Decisión:** autenticación basada en **JWT (JSON Web Token)** vía `Microsoft.AspNetCore.Authentication.JwtBearer`, sin usar ASP.NET Core Identity completo (se mantienen las tablas propias `users`/`roles`/`branches` ya existentes). El flujo es:
-- `POST /api/auth/login` valida `email` + password contra `password_hash` (hasheado con BCrypt) y, si es válido, emite un JWT firmado con: `sub` (id de usuario), `role` (código de `roles.code`) y un claim custom `branch_id`.
+- `POST /api/auth/login` valida `email` + password contra `password_hash` (hasheado con el `PasswordHasher<T>` nativo de ASP.NET Core — ver nota de implementación abajo) y, si es válido, emite un JWT firmado con: `sub` (id de usuario), `role` (código de `roles.code`) y un claim custom `branch_id`.
 - Cada request protegido llega con `Authorization: Bearer <token>`; el middleware de JWT Bearer valida la firma y expiración sin consultar la base de datos.
 - Autorización por rol con `[Authorize(Roles = "general_admin")]` (o combinaciones) en los endpoints.
 - Autorización por sucursal (ej. un Gerente solo ve/opera su propia sucursal) mediante una `AuthorizationPolicy`/`IAuthorizationHandler` custom que compara el claim `branch_id` del token contra el recurso solicitado — el `general_admin` queda exento por tener `branch_id` nulo.
@@ -42,9 +42,12 @@
 - ASP.NET Core Identity completo — descartado por duplicar lo que ya existe en el esquema propio (`users`, `roles`) y añadir complejidad (su propio modelo de tablas) sin necesidad real para el alcance de la prueba.
 
 **Consecuencias:**
-- Requiere paquete `Microsoft.AspNetCore.Authentication.JwtBearer` y `BCrypt.Net-Next` (o equivalente) para hashing de password.
+- Requiere paquete `Microsoft.AspNetCore.Authentication.JwtBearer` para el middleware de JWT.
 - La clave de firma (`Jwt:Key`), `Issuer`, `Audience` y tiempo de expiración se configuran vía `appsettings` + variables de entorno (`.env`), nunca hardcodeadas ni versionadas en texto plano.
 - Revocar un token antes de que expire no es inmediato (limitación conocida de JWT stateless); se mitiga usando tiempos de expiración cortos (ej. 2 horas) — no se implementa refresh token por estar fuera del alcance mínimo exigido, pero queda anotado como mejora futura.
+
+**Nota de implementación (hashing de contraseñas): `PasswordHasher<T>` en vez de BCrypt.**
+Al implementar `Infrastructure/Auth/PasswordHasher.cs` se optó por el `PasswordHasher<T>` que ya trae `Microsoft.AspNetCore.Identity` (PBKDF2 + HMACSHA256, salt aleatorio de 128 bits) en vez de agregar `BCrypt.Net-Next` como se planteaba originalmente arriba. Razones: (1) cero dependencias nuevas — la clase ya viene con el framework compartido de ASP.NET Core, sin paquete NuGet adicional; (2) es el mismo algoritmo que usa internamente la propia ASP.NET Core Identity, un estándar ya vetado por Microsoft, no una elección improvisada; (3) el proyecto ya había descartado usar Identity *completo* por duplicar el esquema de tablas — usar su utilitario de hashing por separado no contradice esa decisión, porque no trae tablas ni `UserManager`, solo la función `HashPassword`/`VerifyHashedPassword`. No se descarta BCrypt por ser peor, sino porque no aporta nada adicional que el proyecto necesite y sí agrega una dependencia externa evitable.
 
 ---
 
@@ -127,6 +130,19 @@ Dos módulos no tienen `Repositories/` ni `Entities/` propias porque no tienen t
 - **Contraseña commiteada tal cual en `appsettings.Development.json`** — descartado: repetiría el mismo antipatrón de contraseña en texto plano en un archivo versionado que ya se corrigió en `docker-compose.yml`.
 
 **Consecuencias:** al clonar el repo por primera vez hay que crear `backend/appsettings.Development.json` a partir de `.example` (mismo paso que ya existe para `.env`) antes de poder correr el backend fuera de Docker — documentar este paso en el README raíz (Fase 7).
+
+---
+
+## Mapeo EF Core: `EFCore.NamingConventions` (snake_case automático)
+
+**Contexto:** el esquema de Postgres usa `snake_case` para tablas y columnas (`password_hash`, `created_at`, `branch_id`...), pero la convención de C#/EF Core es `PascalCase`. Siendo Database First y con 22 tablas por mapear a lo largo de la Fase 4, escribir `.HasColumnName("...")` a mano en cada propiedad de cada `IEntityTypeConfiguration<T>` es trabajo repetitivo y una fuente fácil de errores de tipeo silenciosos (un nombre de columna mal escrito no falla en compilación, falla en runtime contra Postgres).
+
+**Decisión:** paquete `EFCore.NamingConventions`, activado una sola vez en `Program.cs` (`.UseSnakeCaseNamingConvention()` encadenado a `UseNpgsql(...)`). Convierte automáticamente `PasswordHash` → `password_hash`, `BranchId` → `branch_id`, y el nombre de cada `DbSet<T>` a su tabla en `snake_case` — sin tocar una sola `IEntityTypeConfiguration<T>` para esto.
+
+**Justificación:** elimina un mapeo manual repetitivo en las ~22 tablas que quedan por conectar, reduce el riesgo de typos en nombres de columna, y no reemplaza ni contradice el resto de la configuración manual (relaciones FK, `ToTable`, etc. siguen siendo explícitas donde EF Core no puede inferirlas solo).
+
+**Alternativas consideradas:**
+- `.HasColumnName("...")` manual en cada propiedad — descartado por volumen de trabajo repetitivo sin beneficio real frente a la convención automática.
 
 ---
 

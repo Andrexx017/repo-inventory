@@ -34,11 +34,11 @@ services:
 
     environment:
       ASPNETCORE_ENVIRONMENT: "Production"
-      # Fase 4 todavía no agrega EF Core/Npgsql al backend; esta variable queda
-      # lista para que, en cuanto se configure el DbContext, ASP.NET Core la
-      # lea automáticamente como ConnectionStrings:Default (doble guion bajo
-      # = separador de sección jerárquica en la configuración de .NET).
+      # ASP.NET Core la lee automáticamente como ConnectionStrings:Default
+      # (doble guion bajo = separador de sección jerárquica en la configuración
+      # de .NET). Ver Infrastructure/Persistence/AppDbContext.cs y Program.cs.
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      Jwt__Key: "${JWT_KEY}"
 
     ports:
       - "5107:8080"

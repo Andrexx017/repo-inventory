@@ -7,5 +7,8 @@
   },
   "ConnectionStrings": {
     "Default": "Host=localhost;Port=5432;Database=inventory;Username=admin_inventory;Password=REEMPLAZAR_CON_LA_MISMA_PASSWORD_DEL_.ENV"
+  },
+  "Jwt": {
+    "Key": "REEMPLAZAR_CON_LA_MISMA_CLAVE_DEL_.ENV_JWT_KEY"
   }
 }

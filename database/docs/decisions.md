@@ -110,3 +110,18 @@
 **Refinamiento posterior a `stock_alerts` (22/08/2026):** se agregaron dos restricciones que sí puede garantizar la propia base de datos (a diferencia de las reglas listadas en `backend/docs/reglas-negocio-criticas.md`, que necesitan consultar otra tabla):
 - `CHECK (status = 'pending' OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL))` — una alerta resuelta siempre debe registrar quién y cuándo la resolvió.
 - Índice único parcial `ux_stock_alerts_open (branch_id, product_id, alert_type) WHERE status = 'pending'` — impide que existan dos alertas abiertas para el mismo producto/sucursal/tipo (ej. varias ventas seguidas del mismo producto ya en alerta no deben generar alertas duplicadas), sin afectar el historial de alertas ya resueltas.
+
+---
+
+## Datos de prueba: `database/init/03-seed.sql`
+
+**Contexto:** para probar el módulo de Auth (login, autorización por rol/sucursal) y los módulos siguientes hace falta al menos un usuario por rol y algo de catálogo/sucursales — la tabla `users` no tenía ninguna fila sembrada (a diferencia de `roles`, que sí trae sus 3 filas desde `01-schema.sql`).
+
+**Decisión:** `03-seed.sql`, siguiente en la numeración de `database/init/`, con datos de prueba mínimos pero suficientes para ejercitar relaciones reales: 3 sucursales (Bogotá, Medellín, Cali), 4 categorías, 4 unidades de medida, 6 productos de consumo masivo colombiano (con su `product_units` correspondiente), y 3 usuarios — uno por rol (`general_admin` sin sucursal, `branch_manager` y `inventory_operator` cada uno en una sucursal distinta). Credenciales y contraseña de prueba documentadas en el encabezado del propio script.
+
+**Justificación:**
+- A diferencia de `appsettings.Development.json` (que sí tiene la contraseña real de Postgres), este script **no contiene ningún dato sensible real** — es contraseña y datos de prueba, por eso sí se commitea a git como el resto del schema.
+- Datos realistas (ciudades y productos colombianos) en vez de "Sucursal 1"/"Producto A" hacen más fácil verificar visualmente que las relaciones (usuario→rol→sucursal, producto→categoría→unidad) están bien armadas al probar cada módulo nuevo.
+- Un usuario por rol permite probar la autorización por rol/sucursal (Decisión de autenticación) desde el primer módulo implementado, sin tener que crear usuarios manualmente cada vez.
+
+**Consecuencias:** los scripts de `docker-entrypoint-initdb.d` solo corren automáticamente si el volumen de Postgres está vacío — en un volumen ya inicializado (como el de este proyecto, cargado a mano por DBeaver) hay que aplicar `03-seed.sql` una vez a mano. Documentado en el propio script.
