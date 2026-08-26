@@ -5,6 +5,7 @@ requirements/
 backend/appsettings.Development.json
 
 SUSTENTACION.md
+RUTA.md
 
 **/obj/
 **/bin/

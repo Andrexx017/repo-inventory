@@ -17,5 +17,12 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Regla nueva del "React Compiler" que marca como error el patrón estándar
+      // de "cargar datos al montar" (useEffect -> función async -> setState) que
+      // usan todas las pantallas de este proyecto (Branches, Users, Roles, etc.).
+      // No hay un bug real detrás; se apaga puntualmente esta regla.
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])
