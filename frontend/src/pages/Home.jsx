@@ -18,6 +18,8 @@ export default function Home() {
       {user?.role === 'general_admin' && (
         <nav>
           <Link to="/branches">Sucursales</Link>
+          <Link to="/roles">Roles</Link>
+          <Link to="/users">Usuarios</Link>
         </nav>
       )}
 

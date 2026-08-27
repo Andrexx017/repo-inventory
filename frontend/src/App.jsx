@@ -2,6 +2,8 @@ import { Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import LoginPage from './pages/LoginPage';
 import Branches from './pages/Branches';
+import Roles from './pages/Roles';
+import Users from './pages/Users';
 import RequireAuth from './components/RequireAuth';
 import RequireRole from './components/RequireRole';
 
@@ -21,6 +23,23 @@ function App() {
         element={
           <RequireRole roles={['general_admin']}>
             <Branches />
+          </RequireRole>
+        }
+      />
+      
+      <Route
+        path="/roles"
+        element={
+          <RequireRole roles={['general_admin']}>
+            <Roles />
+          </RequireRole>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <RequireRole roles={['general_admin']}>
+            <Users />
           </RequireRole>
         }
       />
