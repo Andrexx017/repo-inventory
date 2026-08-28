@@ -15,8 +15,12 @@ export default function Home() {
       <h1>Home Page</h1>
       <p>Bienvenido, {user?.name} ({user?.role})</p>
 
+      <nav style={{ display: 'flex', gap: '1rem' }}>
+        <Link to="/products">Catálogo</Link>
+      </nav>
+
       {user?.role === 'general_admin' && (
-        <nav>
+        <nav style={{ display: 'flex', gap: '1rem' }}>
           <Link to="/branches">Sucursales</Link>
           <Link to="/roles">Roles</Link>
           <Link to="/users">Usuarios</Link>

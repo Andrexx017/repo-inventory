@@ -4,8 +4,10 @@ import LoginPage from './pages/LoginPage';
 import Branches from './pages/Branches';
 import Roles from './pages/Roles';
 import Users from './pages/Users';
+import Products from './pages/Products';
 import RequireAuth from './components/RequireAuth';
 import RequireRole from './components/RequireRole';
+
 
 function App() {
   return (
@@ -15,6 +17,14 @@ function App() {
         element={
           <RequireAuth>
             <Home />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/products"
+        element={
+          <RequireAuth>
+            <Products />
           </RequireAuth>
         }
       />
