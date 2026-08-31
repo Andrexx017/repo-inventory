@@ -1,0 +1,62 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+}
+
+:root {
+    --font-sans: 'IBM Plex Sans', system-ui, 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+}
+
+/* Oscuro es el tema por defecto (ver useTheme.js): mismo criterio que el
+   mockup aprobado, coherente entre Login y Home. */
+:root,
+[data-theme='dark'] {
+    --bg: #0b0d10;
+    --surface: #14171c;
+    --border: #262b33;
+    --text: #e7e9ee;
+    --text-muted: #8b93a0;
+    --accent: #e8a23a;
+    --accent-soft: rgba(232, 162, 58, 0.16);
+    --cyan: #4fb8d9;
+    --success: #3ecf6e;
+    --success-soft: rgba(62, 207, 110, 0.15);
+    --warning: #e8a23a;
+    --warning-soft: rgba(232, 162, 58, 0.15);
+    --danger: #e0574f;
+    --danger-soft: rgba(224, 87, 79, 0.16);
+    --shadow: none;
+}
+
+[data-theme='light'] {
+    --bg: #f6f7fa;
+    --surface: #ffffff;
+    --border: #e3e6ec;
+    --text: #1c2030;
+    --text-muted: #6b7280;
+    --accent: #b3711f;
+    --accent-soft: #fbeed9;
+    --cyan: #0e7490;
+    --success: #1f9d55;
+    --success-soft: #e9f8ee;
+    --warning: #b45309;
+    --warning-soft: #fdf1e3;
+    --danger: #d9483a;
+    --danger-soft: #fbe9e7;
+    --shadow: 0 1px 2px rgba(20, 22, 35, 0.04), 0 10px 26px rgba(20, 22, 35, 0.06);
+}
+
+body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    transition: background 0.15s, color 0.15s;
+}
+
+a {
+    color: var(--cyan);
+}
