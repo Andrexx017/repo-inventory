@@ -1,6 +1,7 @@
 using Inventory.Modules.Auth.Entities;
 using Inventory.Modules.Catalog.Entities;
 using Inventory.Modules.Inventory.Entities;
+using Inventory.Modules.Purchases.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Infrastructure.Persistence;
@@ -22,6 +23,12 @@ public class AppDbContext : DbContext
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<StockAlert> StockAlerts => Set<StockAlert>();
+
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+    public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
+    public DbSet<PurchaseReceipt> PurchaseReceipts => Set<PurchaseReceipt>();
+    public DbSet<PurchaseReceiptItem> PurchaseReceiptItems => Set<PurchaseReceiptItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

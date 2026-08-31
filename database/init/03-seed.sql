@@ -65,6 +65,18 @@ SELECT p.id, p.base_unit_id, 1, TRUE, TRUE
 FROM products p;
 
 -- ---------------------------------------------------------------------
+-- Proveedores de prueba (módulo Compras, RF-12)
+-- ---------------------------------------------------------------------
+
+INSERT INTO suppliers (name, tax_id, contact_name, phone, email, address) VALUES
+    ('Distribuidora La Sabana S.A.S.', '900123456-1', 'Marcela Rojas', '+57 601 555 0201',
+        'ventas@lasabana.test', 'Cra 68 # 24-15, Bogotá'),
+    ('Alimentos del Valle Ltda.',      '900654321-2', 'Andrés Muñoz',  '+57 602 555 0202',
+        'pedidos@alimentosdelvalle.test', 'Av 4N # 12-30, Cali'),
+    ('Comercializadora Antioquia S.A.', '900789012-3', 'Laura Vélez',  '+57 604 555 0203',
+        'compras@comerantioquia.test', 'Cl 50 # 45-20, Medellín');
+
+-- ---------------------------------------------------------------------
 -- Usuarios de prueba — uno por rol (ver credenciales en el encabezado)
 -- ---------------------------------------------------------------------
 
