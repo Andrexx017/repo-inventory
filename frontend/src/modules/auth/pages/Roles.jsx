@@ -1,25 +1,7 @@
-import { useEffect, useState } from 'react';
-import { getJson } from '../apiClient';
+import { useRoles } from '../hooks/useRoles';
 
 export default function Roles() {
-  const [roles, setRoles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  async function load() {
-    try {
-      const data = await getJson('/api/roles');
-      setRoles(data);
-    } catch (err) {
-      setError(err.message || 'No se pudieron cargar los roles.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
+  const { roles, loading, error } = useRoles();
 
   if (loading) return <p>Cargando...</p>;
   if (error) return <p>{error}</p>;

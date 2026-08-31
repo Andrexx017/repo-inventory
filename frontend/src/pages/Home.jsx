@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { getUser, logout } from '../apiClient';
+import { getUser, logout } from '../shared/apiClient';
 
 export default function Home() {
   const navigate = useNavigate();

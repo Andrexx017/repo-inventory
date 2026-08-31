@@ -1,12 +1,12 @@
 import { Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
-import LoginPage from './pages/LoginPage';
-import Branches from './pages/Branches';
-import Roles from './pages/Roles';
-import Users from './pages/Users';
-import Products from './pages/Products';
-import RequireAuth from './components/RequireAuth';
-import RequireRole from './components/RequireRole';
+import LoginPage from './modules/auth/pages/LoginPage';
+import Branches from './modules/auth/pages/Branches';
+import Roles from './modules/auth/pages/Roles';
+import Users from './modules/auth/pages/Users';
+import Products from './modules/catalog/pages/Products';
+import RequireAuth from './shared/components/RequireAuth';
+import RequireRole from './shared/components/RequireRole';
 
 
 function App() {

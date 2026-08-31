@@ -1,32 +1,7 @@
-import { useEffect, useState } from 'react';
-import { getJson } from '../apiClient';
+import { useProducts } from '../hooks/useProducts';
 
-export default function Products() 
-{
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');  
-
-    async function load()
-    {
-        try
-        {
-            const data = await getJson('/api/products');
-            setProducts(data);
-        } 
-        catch(err)
-        {
-            setError(err.message || 'No se pudieron cargar los productos.')
-        }
-        finally
-        {
-            setLoading(false);
-        }
-    }
-
-    useEffect(() => {
-        load();
-    }, []);
+export default function Products() {
+    const { products, loading, error } = useProducts();
 
     if (loading) return <p>Cargando...</p>;
     if (error) return <p>{error}</p>;
@@ -60,5 +35,5 @@ export default function Products()
                 </tbody>
             </table>
         </div>
-    )
+    );
 }

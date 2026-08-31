@@ -39,6 +39,33 @@
 
 ---
 
+## Organización de carpetas — Screaming Architecture por módulo (espejo del backend)
+
+**Contexto:** hasta ahora el frontend agrupaba archivos por tipo técnico (`pages/`, `components/`), mezclando en cada componente la llamada a la API, el estado/lógica y el JSX de presentación. El backend ya había resuelto este mismo problema con Screaming Architecture (`backend/docs/decisions.md`, sección "Convención de carpetas del backend"): una carpeta por módulo funcional (`Auth`, `Catalog`, `Inventory`, ...), cada una con sus propias capas técnicas adentro. Se decidió replicar el mismo criterio en el frontend para que ambos lados del proyecto se lean igual y un módulo de negocio sea fácil de ubicar completo, sin saltar entre carpetas técnicas dispersas.
+
+**Decisión:** `frontend/src/modules/<módulo>/`, uno por cada módulo del backend (`auth`, `catalog`, `inventory`, `purchases`, `sales`, `transfers`, `dashboard`, `reports` — en minúscula, convención JS, a diferencia del PascalCase de C#). Dentro de cada módulo, 3 capas:
+- **`api/`** — funciones que envuelven `shared/apiClient.js` (una por entidad, ej. `branchesApi.js`), equivalente a los Repository del backend: solo llamadas HTTP, sin estado ni JSX.
+- **`hooks/`** — un custom hook por pantalla (ej. `useBranches.js`) con el estado de React, los `useEffect` y los handlers (`handleSubmit`, `handleEdit`); llama a `api/`. Equivalente a los Service del backend: acá vive la lógica.
+- **`pages/`** — el componente de página, solo JSX que consume el hook y su `.css` co-localizado. Equivalente a la vista que renderiza lo que el Service ya preparó.
+
+Fuera de `modules/`, dos carpetas transversales (mismo criterio que `Infrastructure/`/`Shared/` en el backend, que tampoco pertenecen a un módulo de negocio):
+- **`shared/apiClient.js`** — el cliente HTTP centralizado, usado por el `api/` de todos los módulos.
+- **`shared/components/`** — guards de ruteo (`RequireAuth`, `RequireRole`) que envuelven rutas de cualquier módulo, no son parte del dominio de ninguno en particular.
+- **`pages/Home.jsx`** queda fuera de `modules/` a propósito: es el shell/landing de la SPA (navegación entre módulos tras el login), no la pantalla de un módulo de negocio específico.
+
+**Justificación:**
+- Mismo argumento que ya justificó Screaming Architecture en el backend: la carpeta raíz "grita" el dominio del sistema (`modules/inventory`, `modules/sales`) en vez de gritar el framework (`pages/`, `hooks/` sueltos a nivel raíz).
+- Separar `api/`/`hooks/`/`pages/` hace testeable la lógica sin renderizar el DOM (un hook se puede probar aislado) y reutilizable sin duplicar JSX (dos pantallas podrían compartir un hook si hiciera falta).
+- Trazabilidad 1 a 1 con el backend: quien lee `backend/Modules/Inventory/` y `frontend/src/modules/inventory/` entiende que hablan del mismo módulo de negocio, aunque las capas internas no se llamen igual (Controller/Service/Repository vs. pages/hooks/api).
+
+**Alternativas consideradas:**
+- Mantener `pages/`/`components/` a nivel raíz (organización por tipo técnico) — descartada porque ya mostraba el problema que Screaming Architecture resuelve en el backend: para tocar "Sucursales" había que abrir `pages/Branches.jsx` sin ninguna carpeta que agrupara su lógica o sus llamadas a la API relacionadas.
+- Un solo archivo por pantalla (JSX + estado + llamadas a la API juntos, como estaba antes) — más rápido de escribir al principio, pero mezcla 3 responsabilidades distintas en un mismo archivo, dificultando probar la lógica sin renderizar y reusarla entre pantallas.
+
+**Consecuencias:** cada pantalla nueva agrega 3 archivos en vez de 1 (más ceremonia por pantalla chica), pero el criterio ya está probado y documentado en el backend, así que no es una convención nueva que inventar — solo aplicarla del lado del cliente. Los módulos sin pantalla todavía (`inventory`, `purchases`, `sales`, `transfers`, `dashboard`, `reports`) existen como carpeta vacía con `.gitkeep`, mismo patrón que usó el backend en su commit 7 (`RUTA.md`) para las carpetas de módulo antes de tener contenido real.
+
+---
+
 ## Contenedorización del frontend
 
 **Decisión:** el frontend se empaqueta como imagen Docker independiente (build de Vite servido por un servidor estático), orquestada junto a `backend` y `postgres` en `docker-compose.yml`.

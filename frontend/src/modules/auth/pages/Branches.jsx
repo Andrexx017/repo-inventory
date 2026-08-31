@@ -1,71 +1,17 @@
-import { useEffect, useState } from 'react';
-import { getJson, postJson, putJson } from '../apiClient';
+import { useBranches } from '../hooks/useBranches';
 
 export default function Branches() {
-  const [branches, setBranches] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [city, setCity] = useState('');
-  const [active, setActive] = useState(true);
-  const [address, setAddress] = useState('');
-  const [phone, setPhone] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [formError, setFormError] = useState('');
-
-  async function load() {
-    try {
-      const data = await getJson('/api/branches');
-      setBranches(data);
-    } catch (err) {
-      setError(err.message || 'No se pudieron cargar las sucursales.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  function resetForm() {
-    setCode('');
-    setName('');
-    setAddress('');
-    setCity('');
-    setPhone('');
-    setActive(true);
-    setEditingId(null);
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setFormError('');
-
-    try {
-      if (editingId === null) {
-        await postJson('/api/branches', { code, name, address, city, phone });
-      } else {
-        await putJson(`/api/branches/${editingId}`, { name, address, city, phone, active });
-      }
-
-      resetForm();
-      await load();
-    } catch (err) {
-      setFormError(err.message || 'No se pudo guardar la sucursal.');
-    }
-  }
-
-  function handleEdit(branch) {
-    setCode(branch.code);
-    setName(branch.name);
-    setAddress(branch.address || '');
-    setCity(branch.city || '');
-    setPhone(branch.phone || '');
-    setActive(branch.active);
-    setEditingId(branch.id);
-  }
+  const {
+    branches, loading, error,
+    code, setCode,
+    name, setName,
+    address, setAddress,
+    city, setCity,
+    phone, setPhone,
+    active, setActive,
+    editingId, formError,
+    handleSubmit, handleEdit, resetForm,
+  } = useBranches();
 
   if (loading) return <p>Cargando...</p>;
   if (error) return <p>{error}</p>;
