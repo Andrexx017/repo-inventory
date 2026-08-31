@@ -15,12 +15,15 @@ public class InventoryService : IInventoryService
     private readonly IInventoryRepository _inventory;
     private readonly IBranchRepository _branches;
     private readonly IProductRepository _products;
+    private readonly IUserRepository _users;
 
-    public InventoryService(IInventoryRepository inventory, IBranchRepository branches, IProductRepository products)
+    public InventoryService(
+        IInventoryRepository inventory, IBranchRepository branches, IProductRepository products, IUserRepository users)
     {
         _inventory = inventory;
         _branches = branches;
         _products = products;
+        _users = users;
     }
 
     public async Task<IReadOnlyList<InventoryItemDto>> GetByBranchAsync(long branchId)
@@ -86,11 +89,12 @@ public class InventoryService : IInventoryService
         // siempre, no solo en el retiro. La alerta se agrega al mismo change tracker
         // que el movimiento y el item, así que viaja en el mismo SaveChanges de abajo
         // (RN-CRIT-04: todo o nada).
-        await CheckLowStockAlertAsync(item);
+        await CheckLowStockAlertAsync(item, responsibleUserId);
 
         await _inventory.SaveChangesAsync();
 
-        return ToMovementDto(movement, item);
+        var responsibleUser = await _users.GetByIdAsync(responsibleUserId);
+        return ToMovementDto(movement, item, responsibleUser?.Name ?? $"Usuario #{responsibleUserId}");
     }
 
     // Motivos de retiro permitidos por RF-08 (coinciden con el CHECK de la BD, sin transfer_out
@@ -147,14 +151,15 @@ public class InventoryService : IInventoryService
 
         // RF-09: acá es donde más importa el chequeo — un retiro es justo lo que
         // puede empujar el stock por debajo del mínimo configurado.
-        await CheckLowStockAlertAsync(item);
+        await CheckLowStockAlertAsync(item, responsibleUserId);
 
         // RN-CRIT-04: el UPDATE de stock (arriba), el INSERT del movimiento y el
         // INSERT de la alerta (si se disparó) viajan en el mismo SaveChanges → o se
         // guardan los tres, o ninguno.
         await _inventory.SaveChangesAsync();
 
-        return ToMovementDto(movement, item);
+        var responsibleUser = await _users.GetByIdAsync(responsibleUserId);
+        return ToMovementDto(movement, item, responsibleUser?.Name ?? $"Usuario #{responsibleUserId}");
     }
 
     // RF-11: historial de movimientos, ya ordenado del más reciente al más antiguo
@@ -164,11 +169,13 @@ public class InventoryService : IInventoryService
     public async Task<IReadOnlyList<InventoryMovementDto>> GetMovementsAsync(long branchId, long? productId)
     {
         var movements = await _inventory.GetMovementsByBranchAsync(branchId, productId);
-        return movements.Select(m => ToMovementDto(m, branch: m.Branch, product: m.Product)).ToList();
+        return movements
+            .Select(m => ToMovementDto(m, m.Branch, m.Product, m.ResponsibleUser.Name))
+            .ToList();
     }
 
     public async Task<InventoryItemDto> SetThresholdsAsync(
-        long branchId, long productId, UpdateInventoryThresholdsDto request)
+        long branchId, long productId, UpdateInventoryThresholdsDto request, long userId)
     {
         if (request.MaximumStock is not null && request.MaximumStock < request.MinimumStock)
         {
@@ -207,7 +214,7 @@ public class InventoryService : IInventoryService
         // Bajar el mínimo a mano puede hacer que el stock actual quede por debajo
         // del nuevo umbral sin que haya habido ningún movimiento — también dispara
         // la alerta acá, no solo en los movimientos.
-        await CheckLowStockAlertAsync(item);
+        await CheckLowStockAlertAsync(item, userId);
 
         await _inventory.SaveChangesAsync();
 
@@ -224,10 +231,32 @@ public class InventoryService : IInventoryService
     // una alerta 'pending' para ese producto/sucursal, crea una nueva. MinimumStock
     // en 0 significa "sin umbral configurado" (es el default de la columna) — no
     // tiene sentido alertar "stock bajo cero", así que se excluye a propósito.
-    private async Task CheckLowStockAlertAsync(InventoryItem item)
+    public async Task CheckLowStockAlertAsync(InventoryItem item, long actingUserId)
     {
-        if (item.MinimumStock <= 0 || item.CurrentQuantity > item.MinimumStock)
+        var isLow = item.MinimumStock > 0 && item.CurrentQuantity <= item.MinimumStock;
+
+        if (!isLow)
         {
+            // El stock se recuperó por arriba del mínimo (o el umbral se quitó): si
+            // había una alerta 'pending' para este producto/sucursal, se resuelve
+            // sola acá — pedido explícito para que el sistema no siga mostrando una
+            // alerta de un problema que ya no existe. resolved_by queda con el id de
+            // quien causó la recuperación (quien registró el movimiento o cambió el
+            // umbral) en vez de null: la tabla tiene
+            // CHECK (status = 'pending' OR (resolved_by IS NOT NULL AND resolved_at
+            // IS NOT NULL)), así que "nadie la resolvió" no es un estado que Postgres
+            // permita guardar. Sigue siendo automático (nadie hizo clic en "resolver"),
+            // solo que atribuido a la acción que lo causó — distinto de una futura
+            // resolución manual (RF-34), donde resolved_by sería el usuario que abrió
+            // la alerta y la cerró a propósito, no de rebote.
+            var recovered = await _inventory.GetPendingAlertAsync(item.BranchId, item.ProductId, "low_stock");
+            if (recovered is not null)
+            {
+                recovered.Status = "resolved";
+                recovered.ResolvedBy = actingUserId;
+                recovered.ResolvedAt = DateTimeOffset.UtcNow;
+            }
+
             return;
         }
 
@@ -251,14 +280,18 @@ public class InventoryService : IInventoryService
 
     // Único punto donde se arma un InventoryMovementDto — lo usan tanto el ingreso
     // como el retiro (antes estaba duplicado en los dos métodos) y ahora también
-    // GetMovementsAsync. branch/product llegan por parámetro separado porque
-    // GetMovementsAsync no tiene un InventoryItem a mano (viene directo de la
-    // consulta de movimientos, que sí trae Branch/Product incluidos).
-    private static InventoryMovementDto ToMovementDto(InventoryMovement movement, InventoryItem item) =>
-        ToMovementDto(movement, item.Branch, item.Product);
+    // GetMovementsAsync. branch/product/responsibleUserName llegan por parámetro
+    // separado porque GetMovementsAsync no tiene un InventoryItem a mano (viene
+    // directo de la consulta de movimientos, que sí trae Branch/Product/
+    // ResponsibleUser incluidos) — ver RUTA.md, sección de "Usuario #ID" en la
+    // columna Responsable, corregido a pedido explícito del usuario.
+    private static InventoryMovementDto ToMovementDto(
+        InventoryMovement movement, InventoryItem item, string responsibleUserName) =>
+        ToMovementDto(movement, item.Branch, item.Product, responsibleUserName);
 
     private static InventoryMovementDto ToMovementDto(
-        InventoryMovement movement, Auth.Entities.Branch branch, Catalog.Entities.Product product) => new(
+        InventoryMovement movement, Auth.Entities.Branch branch, Catalog.Entities.Product product,
+        string responsibleUserName) => new(
         movement.Id,
         movement.BranchId,
         branch.Name,
@@ -270,6 +303,7 @@ public class InventoryService : IInventoryService
         movement.UnitCost,
         movement.Reason,
         movement.ResponsibleUserId,
+        responsibleUserName,
         movement.ReferenceType,
         movement.ReferenceId,
         movement.MovementDate,

@@ -77,6 +77,18 @@ INSERT INTO suppliers (name, tax_id, contact_name, phone, email, address) VALUES
         'compras@comerantioquia.test', 'Cl 50 # 45-20, Medellín');
 
 -- ---------------------------------------------------------------------
+-- Lista de precios de prueba (módulo Ventas, RF-18)
+-- ---------------------------------------------------------------------
+
+INSERT INTO price_lists (name, description, start_date, end_date) VALUES
+    ('Lista Mayorista', 'Precios preferenciales para clientes de alto volumen', NULL, NULL);
+
+INSERT INTO price_list_items (price_list_id, product_id, price)
+SELECT (SELECT id FROM price_lists WHERE name = 'Lista Mayorista'), p.id, ROUND(p.reference_price * 0.85, 2)
+FROM products p
+WHERE p.sku IN ('CAF-001', 'ARR-001', 'JAB-001');
+
+-- ---------------------------------------------------------------------
 -- Usuarios de prueba — uno por rol (ver credenciales en el encabezado)
 -- ---------------------------------------------------------------------
 

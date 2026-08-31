@@ -15,6 +15,7 @@ public class InventoryMovement
     public decimal? UnitCost { get; set; }
     public string Reason { get; set; } = null!;
     public long ResponsibleUserId { get; set; }
+    public User ResponsibleUser { get; set; } = null!;
     public string? ReferenceType { get; set; }
     public long? ReferenceId { get; set; }
     public DateTimeOffset MovementDate { get; set; }

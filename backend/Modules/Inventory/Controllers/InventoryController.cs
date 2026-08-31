@@ -77,7 +77,7 @@ public class InventoryController : ControllerBase
             return Forbid();
         }
 
-        var item = await _inventoryService.SetThresholdsAsync(branchId, productId, request);
+        var item = await _inventoryService.SetThresholdsAsync(branchId, productId, request, User.GetUserId());
         return Ok(item);
     }
 

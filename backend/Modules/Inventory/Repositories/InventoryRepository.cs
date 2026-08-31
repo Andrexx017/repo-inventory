@@ -50,6 +50,7 @@ public class InventoryRepository : IInventoryRepository
             .Where(m => m.BranchId == branchId)
             .Include(m => m.Branch)
             .Include(m => m.Product)
+            .Include(m => m.ResponsibleUser)
             .AsQueryable();
 
         if (productId is not null)

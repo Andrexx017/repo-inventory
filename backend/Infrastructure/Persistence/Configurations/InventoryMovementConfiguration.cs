@@ -21,5 +21,10 @@ public class InventoryMovementConfiguration : IEntityTypeConfiguration<Inventory
             .WithMany()
             .HasForeignKey(i => i.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(i => i.ResponsibleUser)
+            .WithMany()
+            .HasForeignKey(i => i.ResponsibleUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

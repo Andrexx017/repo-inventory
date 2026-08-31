@@ -12,6 +12,7 @@ public record InventoryMovementDto(
     decimal? UnitCost,
     string Reason,
     long ResponsibleUserId,
+    string ResponsibleUserName,
     string? ReferenceType,
     long? ReferenceId,
     DateTimeOffset MovementDate,
