@@ -37,4 +37,53 @@ public class InventoryController : ControllerBase
         var movement = await _inventoryService.RegisterIncomingMovementAsync(branchId, request, User.GetUserId());
         return Ok(movement);
     }
+
+    [HttpPost("{branchId:long}/movements/outgoing")]
+    public async Task<ActionResult<InventoryMovementDto>> RegisterOutgoing(
+        long branchId, CreateInventoryMovementDto request)
+    {
+        // Mismo control de acceso que el ingreso: solo puede operar sobre
+        // el inventario de su propia sucursal (política SameBranch).
+        var authResult = await _authorizationService.AuthorizeAsync(User, branchId, "SameBranch");
+        if (!authResult.Succeeded)
+        {
+            return Forbid();
+        }
+
+        var movement = await _inventoryService.RegisterOutgoingMovementAsync(branchId, request, User.GetUserId());
+        return Ok(movement);
+    }
+
+    // RF-11: historial auditable. [Authorize] simple, igual que GetByBranch — es
+    // consulta de solo lectura, no movimiento de stock, así que no aplica SameBranch
+    // (mismo criterio que RF-06: "consultar inventario de cualquier sucursal, solo lectura").
+    // ?productId= es opcional (query string, porque no forma parte de la ruta) para
+    // ver la trazabilidad completa de un solo producto en vez de toda la sucursal.
+    [HttpGet("{branchId:long}/movements")]
+    public async Task<ActionResult<IReadOnlyList<InventoryMovementDto>>> GetMovements(
+        long branchId, [FromQuery] long? productId) =>
+        Ok(await _inventoryService.GetMovementsAsync(branchId, productId));
+
+    // RF-09: definir stock mínimo/máximo. Sí exige SameBranch (a diferencia del GET
+    // de arriba) porque acá se está escribiendo sobre el inventario de una sucursal
+    // puntual — mismo control de acceso que RegisterIncoming/RegisterOutgoing.
+    [HttpPut("{branchId:long}/items/{productId:long}/thresholds")]
+    public async Task<ActionResult<InventoryItemDto>> SetThresholds(
+        long branchId, long productId, UpdateInventoryThresholdsDto request)
+    {
+        var authResult = await _authorizationService.AuthorizeAsync(User, branchId, "SameBranch");
+        if (!authResult.Succeeded)
+        {
+            return Forbid();
+        }
+
+        var item = await _inventoryService.SetThresholdsAsync(branchId, productId, request);
+        return Ok(item);
+    }
+
+    // RF-09: listar alertas de stock bajo de una sucursal. Solo lectura, mismo
+    // criterio de acceso que GetByBranch/GetMovements (sin SameBranch).
+    [HttpGet("{branchId:long}/alerts")]
+    public async Task<ActionResult<IReadOnlyList<StockAlertDto>>> GetAlerts(long branchId) =>
+        Ok(await _inventoryService.GetAlertsAsync(branchId));
 }

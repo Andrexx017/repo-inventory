@@ -10,4 +10,14 @@ public interface IInventoryRepository
     void AddItem(InventoryItem item);
     void AddMovement(InventoryMovement movement);
     Task SaveChangesAsync();
+
+    // RF-11: historial de movimientos de una sucursal (opcionalmente filtrado por
+    // producto), del más reciente al más antiguo — es la consulta de auditoría.
+    Task<IReadOnlyList<InventoryMovement>> GetMovementsByBranchAsync(long branchId, long? productId);
+
+    // RF-09: alertas de stock por sucursal. GetPendingAlertAsync evita duplicar una
+    // alerta mientras la anterior siga sin resolver (ver InventoryService).
+    Task<StockAlert?> GetPendingAlertAsync(long branchId, long productId, string alertType);
+    void AddAlert(StockAlert alert);
+    Task<IReadOnlyList<StockAlert>> GetAlertsByBranchAsync(long branchId);
 }

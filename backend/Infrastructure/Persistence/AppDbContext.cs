@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<ProductUnit> ProductUnits => Set<ProductUnit>();
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<StockAlert> StockAlerts => Set<StockAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
