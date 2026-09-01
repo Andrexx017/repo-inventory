@@ -23,3 +23,7 @@ export function setThresholds(branchId, productId, thresholds) {
 export function getAlerts(branchId) {
   return getJson(`/api/inventory/${branchId}/alerts`);
 }
+
+export function resolveAlert(branchId, alertId) {
+  return putJson(`/api/inventory/${branchId}/alerts/${alertId}/resolve`, {});
+}

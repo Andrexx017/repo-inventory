@@ -16,6 +16,10 @@ const STATUS_CLASSES = {
   critico: 'status-pill-inactive',
 };
 
+const ALERT_TYPE_LABELS = { low_stock: 'Stock bajo', high_stock: 'Stock alto' };
+const ALERT_STATUS_LABELS = { pending: 'PENDIENTE', resolved: 'RESUELTA' };
+const ALERT_STATUS_CLASSES = { pending: 'status-pill-warn', resolved: 'status-pill-active' };
+
 function formatMoney(value) {
   if (value === null || value === undefined) return '—';
   return `$${Number(value).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
@@ -46,6 +50,7 @@ export default function Inventory() {
     formError, handleSubmitMovement,
     thresholdEditingItem, thresholdMin, setThresholdMin, thresholdMax, setThresholdMax,
     thresholdError, handleEditThreshold, cancelThresholdEdit, handleSubmitThreshold,
+    alertError, resolvingAlertId, handleResolveAlert,
   } = useInventory();
 
   const currentBranch = branches.find((b) => String(b.id) === branchId);
@@ -136,6 +141,13 @@ export default function Inventory() {
               onClick={() => setTab('movimientos')}
             >
               Movimientos
+            </button>
+            <button
+              type="button"
+              className={`inv-tab ${tab === 'alertas' ? 'inv-tab-active' : ''}`}
+              onClick={() => setTab('alertas')}
+            >
+              Alertas{activeAlertsCount > 0 && ` (${activeAlertsCount})`}
             </button>
           </div>
 
@@ -384,6 +396,59 @@ export default function Inventory() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            </>
+          )}
+
+          {tab === 'alertas' && (
+            <>
+              {alertError && <p className="form-error">{alertError}</p>}
+
+              <div className="table-card">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>DISPARADA</th>
+                      <th>PRODUCTO</th>
+                      <th>TIPO</th>
+                      <th>CANTIDAD</th>
+                      <th>UMBRAL</th>
+                      <th>ESTADO</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alerts.map((a) => (
+                      <tr key={a.id}>
+                        <td className="mono text-muted">{formatDateTime(a.triggeredAt)}</td>
+                        <td style={{ fontWeight: 600 }}>{a.productName}</td>
+                        <td>{ALERT_TYPE_LABELS[a.alertType] || a.alertType}</td>
+                        <td className="mono">{a.quantityAtTrigger}</td>
+                        <td className="mono text-muted">{a.thresholdValue}</td>
+                        <td>
+                          <span className={`status-pill ${ALERT_STATUS_CLASSES[a.status]}`}>
+                            {ALERT_STATUS_LABELS[a.status] || a.status}
+                          </span>
+                        </td>
+                        <td>
+                          {a.status === 'pending' && canMutate && (
+                            <button
+                              type="button"
+                              className="table-action"
+                              disabled={resolvingAlertId === a.id}
+                              onClick={() => handleResolveAlert(a.id)}
+                            >
+                              {resolvingAlertId === a.id ? 'Resolviendo…' : 'Resolver'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {alerts.length === 0 && (
+                  <p className="inv-readonly-note">No hay alertas registradas en esta sucursal.</p>
+                )}
               </div>
             </>
           )}

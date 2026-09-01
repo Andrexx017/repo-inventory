@@ -10,6 +10,7 @@ export class ApiError extends Error {
 
 async function request(path, options = {}) {
     const isLogin = path === '/api/auth/login';
+    const isBlob = options.responseType === 'blob';
 
     const token = !isLogin
         ? localStorage.getItem('token')
@@ -21,7 +22,7 @@ async function request(path, options = {}) {
         response = await fetch(API_URL + path, {
             ...options,
             headers: {
-                'Content-Type': 'application/json',
+                ...(!isBlob && { 'Content-Type': 'application/json' }),
 
                 ...(token && {
                     Authorization: `Bearer ${token}`
@@ -32,6 +33,12 @@ async function request(path, options = {}) {
         });
     } catch {
         throw new ApiError('No se pudo conectar con el servidor.', 0);
+    }
+
+    // Una respuesta binaria (PDF/Excel) exitosa no se puede leer como JSON —
+    // sale por acá antes de intentar response.json() más abajo.
+    if (response.ok && isBlob) {
+        return response.blob();
     }
 
     // Respuestas sin body (204, 401 sin ProblemDetails, etc.)
@@ -95,6 +102,15 @@ export async function putJson(path, body) {
     return request(path, {
         method: 'PUT',
         body: JSON.stringify(body)
+    });
+}
+
+
+// GET binario (PDF/Excel u otro archivo) — devuelve un Blob en vez de JSON.
+export async function getBlob(path) {
+    return request(path, {
+        method: 'GET',
+        responseType: 'blob'
     });
 }
 

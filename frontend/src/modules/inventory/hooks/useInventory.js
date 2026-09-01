@@ -9,6 +9,7 @@ import {
   registerOutgoing,
   setThresholds,
   getAlerts,
+  resolveAlert,
 } from '../api/inventoryApi';
 
 export const INCOMING_TYPES = [
@@ -83,6 +84,9 @@ export function useInventory() {
   const [thresholdMin, setThresholdMin] = useState('');
   const [thresholdMax, setThresholdMax] = useState('');
   const [thresholdError, setThresholdError] = useState('');
+
+  const [alertError, setAlertError] = useState('');
+  const [resolvingAlertId, setResolvingAlertId] = useState(null);
 
   const canMutate = isGeneralAdmin || (!!branchId && String(user?.branchId) === String(branchId));
 
@@ -204,6 +208,20 @@ export function useInventory() {
     }
   }
 
+  async function handleResolveAlert(alertId) {
+    setAlertError('');
+    setResolvingAlertId(alertId);
+
+    try {
+      await resolveAlert(branchId, alertId);
+      await loadInventoryData();
+    } catch (err) {
+      setAlertError(err.message || 'No se pudo resolver la alerta.');
+    } finally {
+      setResolvingAlertId(null);
+    }
+  }
+
   const filteredMovements = movementFilterProductId
     ? movements.filter((m) => String(m.productId) === movementFilterProductId)
     : movements;
@@ -253,5 +271,9 @@ export function useInventory() {
     handleEditThreshold,
     cancelThresholdEdit,
     handleSubmitThreshold,
+
+    alertError,
+    resolvingAlertId,
+    handleResolveAlert,
   };
 }
