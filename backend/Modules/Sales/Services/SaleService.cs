@@ -185,7 +185,7 @@ public class SaleService : ISaleService
             // RF-09: una venta es, en la práctica, la forma más común de cruzar
             // el stock mínimo — reusa la misma lógica de alerta/auto-resolución
             // que ya usan los retiros manuales, en vez de duplicarla acá.
-            await _inventoryService.CheckLowStockAlertAsync(item, sellerId);
+            await _inventoryService.CheckStockAlertsAsync(item, sellerId);
         }
 
         await _inventory.SaveChangesAsync();

@@ -81,4 +81,12 @@ public class InventoryRepository : IInventoryRepository
             .Include(a => a.Product)
             .OrderByDescending(a => a.TriggeredAt)
             .ToListAsync();
+
+    // RF-34: sin AsNoTracking a propósito — ResolveAlertAsync modifica Status/
+    // ResolvedBy/ResolvedAt sobre el objeto que devuelve este mismo método.
+    public Task<StockAlert?> GetAlertByIdAsync(long branchId, long alertId) =>
+        _db.StockAlerts
+            .Include(a => a.Branch)
+            .Include(a => a.Product)
+            .FirstOrDefaultAsync(a => a.Id == alertId && a.BranchId == branchId);
 }

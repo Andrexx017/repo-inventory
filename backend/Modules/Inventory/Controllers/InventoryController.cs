@@ -81,9 +81,25 @@ public class InventoryController : ControllerBase
         return Ok(item);
     }
 
-    // RF-09: listar alertas de stock bajo de una sucursal. Solo lectura, mismo
-    // criterio de acceso que GetByBranch/GetMovements (sin SameBranch).
+    // RF-09/RF-34: listar alertas de stock (bajo y alto) de una sucursal. Solo
+    // lectura, mismo criterio de acceso que GetByBranch/GetMovements (sin SameBranch).
     [HttpGet("{branchId:long}/alerts")]
     public async Task<ActionResult<IReadOnlyList<StockAlertDto>>> GetAlerts(long branchId) =>
         Ok(await _inventoryService.GetAlertsAsync(branchId));
+
+    // RF-34: marcar una alerta como resuelta a mano. Sí exige SameBranch (a
+    // diferencia del GET de arriba) porque acá se está escribiendo sobre una
+    // alerta de una sucursal puntual — mismo criterio que SetThresholds.
+    [HttpPut("{branchId:long}/alerts/{alertId:long}/resolve")]
+    public async Task<ActionResult<StockAlertDto>> ResolveAlert(long branchId, long alertId)
+    {
+        var authResult = await _authorizationService.AuthorizeAsync(User, branchId, "SameBranch");
+        if (!authResult.Succeeded)
+        {
+            return Forbid();
+        }
+
+        var alert = await _inventoryService.ResolveAlertAsync(branchId, alertId, User.GetUserId());
+        return Ok(alert);
+    }
 }

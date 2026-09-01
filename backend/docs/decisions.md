@@ -183,3 +183,23 @@ Dos módulos no tienen `Repositories/` ni `Entities/` propias porque no tienen t
 - No hay rate limiting sobre `forgot-password` — alguien podría spamear el endpoint con un email válido y generar muchos correos. Aceptado conscientemente por el plazo de entrega, mismo criterio que la limitación ya documentada sobre JWT robado (sección "Autenticación": mitigación parcial, no solución completa).
 - El envío de correo es síncrono dentro del request (`await _emailSender.SendAsync(...)` en `AuthService.ForgotPasswordAsync`) — si Gmail SMTP está lento o caído, el endpoint tarda o falla junto con él. Para el volumen de esta prueba no justifica una cola de envío asíncrona.
 - La tabla `password_reset_tokens` se agregó a `01-schema.sql` sobre un volumen de Postgres ya inicializado — igual que `03-seed.sql`, hay que aplicar el `CREATE TABLE`/`CREATE INDEX` a mano una vez (DBeaver o `psql`) contra la base ya levantada.
+
+---
+
+## Notificación de alertas de stock por email (RF-34): reusa el IEmailSender existente, detrás de un flag opcional
+
+**Contexto:** `database/docs/decisions.md` ("alertas inteligentes") ya definía que RF-34 debía "opcionalmente notificarla por correo". `IEmailSender`/`SmtpEmailSender` ya existían desde la sección anterior (recuperación de contraseña) — la pregunta era cómo reusarlos sin convertir un movimiento de inventario en una operación que dependa de que el SMTP esté disponible.
+
+**Decisión:**
+- Reusa el mismo `IEmailSender` (sin una segunda implementación ni un servicio de notificaciones aparte).
+- El envío se dispara desde `InventoryService`, solo cuando `CheckThresholdAlertAsync` **crea** una alerta nueva (no en la auto-resolución) — hacia los usuarios `branch_manager` activos de esa sucursal.
+- Detrás de un flag de configuración, `Alerts:NotifyByEmail` (`appsettings`, default `false`): "opcionalmente" se interpretó como una funcionalidad que un entorno puede activar o dejar apagada, no como "se intenta enviar y no importa si falla" — muchos entornos de evaluación no van a tener SMTP configurado, y esta es una funcionalidad "adicional" (sección 4), no debería bloquear el resto del sistema si falta.
+- El envío va en un `try/catch` que traga cualquier excepción — si el flag está en `true` pero el SMTP falla, la alerta igual queda creada en la base; solo `NotifiedAt` se queda en `null`.
+
+**Justificación:** un correo de aviso es un efecto secundario de la operación real (el movimiento de inventario que cruzó el umbral) — RNF-07 exige atomicidad sobre el *stock*, no sobre la notificación. Dejar que un SMTP caído tumbe una venta o un ingreso de inventario sería un acoplamiento que el propio RF no pide ("opcionalmente"). El flag de configuración es la segunda capa de "opcional": ni siquiera se intenta si el entorno no lo activó.
+
+**Alternativas consideradas:**
+- Cola de envío asíncrona (ej. `IHostedService`/background job) — descartada por sobre-ingeniería para el volumen de esta prueba, mismo criterio que la sección "Recuperación de contraseña" descartó una cola para el correo de reset.
+- Notificar a TODOS los usuarios de la sucursal (no solo `branch_manager`) — descartada: el Operador de inventario ya ve la alerta en la pantalla (RF-09/RF-34 la exponen vía `GET /alerts`), el correo tiene más sentido como aviso a quien "aprueba"/supervisa la sucursal.
+
+**Consecuencias:** si más adelante se necesita notificar a más roles o por otro canal (ej. push, Slack), el punto de extensión ya está aislado en `InventoryService.NotifyAlertByEmailAsync` — no hay que tocar la lógica de detección de umbral.

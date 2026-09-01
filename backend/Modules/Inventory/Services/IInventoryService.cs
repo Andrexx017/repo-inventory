@@ -5,10 +5,13 @@ namespace Inventory.Modules.Inventory.Services;
 
 public interface IInventoryService
 {
-    // RF-09, expuesto para otros módulos que descuentan stock por su cuenta
-    // (ej. Sales) y necesitan la misma lógica de alerta/auto-resolución que ya
-    // usan los retiros manuales — evita duplicar esta regla en cada módulo.
-    Task CheckLowStockAlertAsync(InventoryItem item, long actingUserId);
+    // RF-09/RF-34, expuesto para otros módulos que cambian stock por su cuenta
+    // (ej. Sales, Transfers) y necesitan la misma lógica de alerta/auto-resolución
+    // que ya usan los movimientos manuales — evita duplicar esta regla en cada
+    // módulo. Chequea AMBOS umbrales (mínimo y máximo, RF-34: "por arriba o por
+    // abajo"), no solo el mínimo — de ahí el nombre, distinto del original
+    // CheckLowStockAlertAsync de RF-09.
+    Task CheckStockAlertsAsync(InventoryItem item, long actingUserId);
 
     Task<IReadOnlyList<InventoryItemDto>> GetByBranchAsync(long branchId);
     Task<InventoryMovementDto> RegisterIncomingMovementAsync(
@@ -26,6 +29,12 @@ public interface IInventoryService
     Task<InventoryItemDto> SetThresholdsAsync(
         long branchId, long productId, UpdateInventoryThresholdsDto request, long userId);
 
-    // RF-09: alertas de stock bajo generadas para una sucursal (pendientes y resueltas).
+    // RF-09/RF-34: alertas de stock (bajo y alto) generadas para una sucursal
+    // (pendientes y resueltas).
     Task<IReadOnlyList<StockAlertDto>> GetAlertsAsync(long branchId);
+
+    // RF-34: marca una alerta como resuelta a mano (responsable + fecha), a
+    // diferencia de la auto-resolución que ya hace CheckStockAlertsAsync cuando
+    // el stock se recupera solo.
+    Task<StockAlertDto> ResolveAlertAsync(long branchId, long alertId, long actingUserId);
 }

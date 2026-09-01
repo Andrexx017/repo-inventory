@@ -1,3 +1,5 @@
+using Inventory.Infrastructure.Email;
+using Inventory.Modules.Auth;
 using Inventory.Modules.Auth.Repositories;
 using Inventory.Modules.Catalog.Repositories;
 using Inventory.Modules.Inventory.Dtos;
@@ -16,14 +18,23 @@ public class InventoryService : IInventoryService
     private readonly IBranchRepository _branches;
     private readonly IProductRepository _products;
     private readonly IUserRepository _users;
+    private readonly IEmailSender _emailSender;
+    private readonly IConfiguration _configuration;
 
     public InventoryService(
-        IInventoryRepository inventory, IBranchRepository branches, IProductRepository products, IUserRepository users)
+        IInventoryRepository inventory,
+        IBranchRepository branches,
+        IProductRepository products,
+        IUserRepository users,
+        IEmailSender emailSender,
+        IConfiguration configuration)
     {
         _inventory = inventory;
         _branches = branches;
         _products = products;
         _users = users;
+        _emailSender = emailSender;
+        _configuration = configuration;
     }
 
     public async Task<IReadOnlyList<InventoryItemDto>> GetByBranchAsync(long branchId)
@@ -89,7 +100,7 @@ public class InventoryService : IInventoryService
         // siempre, no solo en el retiro. La alerta se agrega al mismo change tracker
         // que el movimiento y el item, así que viaja en el mismo SaveChanges de abajo
         // (RN-CRIT-04: todo o nada).
-        await CheckLowStockAlertAsync(item, responsibleUserId);
+        await CheckStockAlertsAsync(item, responsibleUserId);
 
         await _inventory.SaveChangesAsync();
 
@@ -151,7 +162,7 @@ public class InventoryService : IInventoryService
 
         // RF-09: acá es donde más importa el chequeo — un retiro es justo lo que
         // puede empujar el stock por debajo del mínimo configurado.
-        await CheckLowStockAlertAsync(item, responsibleUserId);
+        await CheckStockAlertsAsync(item, responsibleUserId);
 
         // RN-CRIT-04: el UPDATE de stock (arriba), el INSERT del movimiento y el
         // INSERT de la alerta (si se disparó) viajan en el mismo SaveChanges → o se
@@ -214,7 +225,7 @@ public class InventoryService : IInventoryService
         // Bajar el mínimo a mano puede hacer que el stock actual quede por debajo
         // del nuevo umbral sin que haya habido ningún movimiento — también dispara
         // la alerta acá, no solo en los movimientos.
-        await CheckLowStockAlertAsync(item, userId);
+        await CheckStockAlertsAsync(item, userId);
 
         await _inventory.SaveChangesAsync();
 
@@ -227,29 +238,43 @@ public class InventoryService : IInventoryService
         return alerts.Select(ToAlertDto).ToList();
     }
 
-    // Revisa si el stock actual ya cruzó el mínimo configurado y, si todavía no hay
-    // una alerta 'pending' para ese producto/sucursal, crea una nueva. MinimumStock
-    // en 0 significa "sin umbral configurado" (es el default de la columna) — no
-    // tiene sentido alertar "stock bajo cero", así que se excluye a propósito.
-    public async Task CheckLowStockAlertAsync(InventoryItem item, long actingUserId)
+    // RF-34: revisa AMBOS umbrales ("por arriba o por abajo") en vez de solo el
+    // mínimo (así se llamaba CheckLowStockAlertAsync en RF-09) — cada umbral se
+    // delega al mismo helper genérico, que ya sabía crear/auto-resolver una
+    // alerta por tipo desde RF-09.
+    public async Task CheckStockAlertsAsync(InventoryItem item, long actingUserId)
     {
+        // MinimumStock/MaximumStock en 0 o null significan "sin umbral
+        // configurado" — no tiene sentido alertar "stock bajo cero" ni "por
+        // arriba de cero".
         var isLow = item.MinimumStock > 0 && item.CurrentQuantity <= item.MinimumStock;
+        await CheckThresholdAlertAsync(item, actingUserId, "low_stock", isLow, item.MinimumStock);
 
-        if (!isLow)
+        var isHigh = item.MaximumStock is { } max && max > 0 && item.CurrentQuantity >= max;
+        await CheckThresholdAlertAsync(item, actingUserId, "high_stock", isHigh, item.MaximumStock ?? 0);
+    }
+
+    // Revisa si el stock actual ya cruzó el umbral dado (mínimo o máximo) y, si
+    // todavía no hay una alerta 'pending' de ese tipo para ese producto/sucursal,
+    // crea una nueva.
+    private async Task CheckThresholdAlertAsync(
+        InventoryItem item, long actingUserId, string alertType, bool isTriggered, decimal thresholdValue)
+    {
+        if (!isTriggered)
         {
-            // El stock se recuperó por arriba del mínimo (o el umbral se quitó): si
-            // había una alerta 'pending' para este producto/sucursal, se resuelve
-            // sola acá — pedido explícito para que el sistema no siga mostrando una
-            // alerta de un problema que ya no existe. resolved_by queda con el id de
-            // quien causó la recuperación (quien registró el movimiento o cambió el
-            // umbral) en vez de null: la tabla tiene
+            // El stock se recuperó dentro del rango normal (o el umbral se quitó):
+            // si había una alerta 'pending' para este producto/sucursal/tipo, se
+            // resuelve sola acá — pedido explícito para que el sistema no siga
+            // mostrando una alerta de un problema que ya no existe. resolved_by
+            // queda con el id de quien causó la recuperación (quien registró el
+            // movimiento o cambió el umbral) en vez de null: la tabla tiene
             // CHECK (status = 'pending' OR (resolved_by IS NOT NULL AND resolved_at
             // IS NOT NULL)), así que "nadie la resolvió" no es un estado que Postgres
-            // permita guardar. Sigue siendo automático (nadie hizo clic en "resolver"),
-            // solo que atribuido a la acción que lo causó — distinto de una futura
-            // resolución manual (RF-34), donde resolved_by sería el usuario que abrió
-            // la alerta y la cerró a propósito, no de rebote.
-            var recovered = await _inventory.GetPendingAlertAsync(item.BranchId, item.ProductId, "low_stock");
+            // permita guardar. Sigue siendo automático (nadie hizo clic en
+            // "resolver"), solo que atribuido a la acción que lo causó — distinto
+            // de la resolución manual de RF-34 (ver ResolveAlertAsync), donde
+            // resolved_by es el usuario que abrió la alerta y la cerró a propósito.
+            var recovered = await _inventory.GetPendingAlertAsync(item.BranchId, item.ProductId, alertType);
             if (recovered is not null)
             {
                 recovered.Status = "resolved";
@@ -260,22 +285,97 @@ public class InventoryService : IInventoryService
             return;
         }
 
-        var existing = await _inventory.GetPendingAlertAsync(item.BranchId, item.ProductId, "low_stock");
+        var existing = await _inventory.GetPendingAlertAsync(item.BranchId, item.ProductId, alertType);
         if (existing is not null)
         {
             return;
         }
 
-        _inventory.AddAlert(new StockAlert
+        var alert = new StockAlert
         {
             BranchId = item.BranchId,
             ProductId = item.ProductId,
-            AlertType = "low_stock",
+            AlertType = alertType,
             QuantityAtTrigger = item.CurrentQuantity,
-            ThresholdValue = item.MinimumStock,
+            ThresholdValue = thresholdValue,
             Status = "pending",
             TriggeredAt = DateTimeOffset.UtcNow,
-        });
+        };
+        _inventory.AddAlert(alert);
+
+        await NotifyAlertByEmailAsync(item, alert);
+    }
+
+    // RF-34: notificación "opcional" — dos niveles de opcionalidad. (1) Detrás de
+    // un flag de configuración (Alerts:NotifyByEmail, default false): no todo
+    // entorno de evaluación va a tener SMTP configurado, y esta funcionalidad
+    // "adicional" no debe exigirlo. (2) Si falla el envío (SMTP caído, mal
+    // configurado), se traga la excepción — un correo de aviso NUNCA debe tumbar
+    // el movimiento de inventario que disparó la alerta; ver RNF-07 (atomicidad),
+    // que es sobre el stock, no sobre un efecto secundario de notificación.
+    private async Task NotifyAlertByEmailAsync(InventoryItem item, StockAlert alert)
+    {
+        if (!_configuration.GetValue("Alerts:NotifyByEmail", false))
+        {
+            return;
+        }
+
+        var recipients = (await _users.GetAllAsync())
+            .Where(u => u.Active && u.BranchId == item.BranchId && u.Role.Code == RoleCodes.BranchManager)
+            .ToList();
+
+        if (recipients.Count == 0)
+        {
+            return;
+        }
+
+        var alertLabel = alert.AlertType == "low_stock" ? "stock bajo" : "exceso de stock";
+
+        try
+        {
+            foreach (var recipient in recipients)
+            {
+                await _emailSender.SendAsync(
+                    recipient.Email,
+                    $"Alerta de {alertLabel} — {item.Product.Sku}",
+                    $"""
+                    <p>Hola {recipient.Name},</p>
+                    <p>El producto <strong>{item.Product.Name}</strong> ({item.Product.Sku}) en tu sucursal
+                    cruzó el umbral de {alertLabel}: existencia actual {alert.QuantityAtTrigger},
+                    umbral configurado {alert.ThresholdValue}.</p>
+                    """);
+            }
+
+            alert.NotifiedAt = DateTimeOffset.UtcNow;
+        }
+        catch (Exception)
+        {
+            // Intencional: ver comentario del método. La alerta ya quedó creada
+            // en el change tracker igual, solo NotifiedAt se queda en null.
+        }
+    }
+
+    // RF-34: marca una alerta como resuelta a mano — a diferencia de la
+    // auto-resolución de CheckThresholdAlertAsync (que ocurre "de rebote" cuando
+    // el stock se recupera solo), acá el responsable es quien realmente
+    // interactuó con la alerta y decide cerrarla.
+    public async Task<StockAlertDto> ResolveAlertAsync(long branchId, long alertId, long actingUserId)
+    {
+        var alert = await _inventory.GetAlertByIdAsync(branchId, alertId)
+            ?? throw new DomainException($"La alerta {alertId} no existe en la sucursal {branchId}.");
+
+        if (alert.Status == "resolved")
+        {
+            throw new DomainException("La alerta ya está resuelta.");
+        }
+
+        alert.Status = "resolved";
+        alert.ResolvedBy = actingUserId;
+        alert.ResolvedAt = DateTimeOffset.UtcNow;
+
+        await _inventory.SaveChangesAsync();
+
+        return ToAlertDto(alert);
     }
 
     // Único punto donde se arma un InventoryMovementDto — lo usan tanto el ingreso
