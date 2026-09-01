@@ -153,3 +153,33 @@ Dos módulos no tienen `Repositories/` ni `Entities/` propias porque no tienen t
 **Justificación:** cumple el requisito obligatorio de levantar todo el proyecto con `docker compose up`, sin configuración manual del entorno local, y aísla el runtime de .NET del resto de servicios.
 
 **Pendiente:** el `Dockerfile` de la raíz está aún vacío y `docker-compose.yml` todavía no define el servicio del backend — falta documentar aquí la estrategia de build (single-stage vs. multi-stage) cuando se implemente.
+
+---
+
+## Recuperación de contraseña: token temporal por email (MailKit + Gmail SMTP)
+
+**Contexto:** el login no tenía forma de recuperar el acceso si un usuario olvidaba su contraseña (el link "Recuperar acceso" del frontend era un placeholder sin funcionalidad). Se decide implementar el flujo estándar "olvidé mi contraseña": el usuario pide un enlace por email, ese enlace incluye un token de un solo uso, y con él define una contraseña nueva.
+
+**Decisión:**
+- Envío de correo con **MailKit** (paquete NuGet, reemplaza al `SmtpClient` de .NET que Microsoft marca obsoleto) contra **Gmail SMTP** (`smtp.gmail.com:587`, `STARTTLS`), autenticado con una contraseña de aplicación de la cuenta de Gmail (no la contraseña normal — requiere verificación en 2 pasos activada).
+- Tabla `password_reset_tokens` (ver `database/docs/decisions.md`) para el token, con hash SHA-256, expiración de 30 minutos y un solo uso.
+- `POST api/auth/forgot-password` responde siempre `200 OK` con el mismo mensaje genérico, exista o no el email — evita que alguien enumere qué correos están registrados en el sistema.
+- `POST api/auth/reset-password` valida el token contra la tabla y, si es válido, reusa `IPasswordHasher.Hash` (el mismo utilitario de la sección "Autenticación", ya usado para sembrar los usuarios de prueba) para guardar la contraseña nueva.
+
+**Justificación:**
+- **Gmail SMTP y no un proveedor con dominio propio (SendGrid/Brevo/Resend):** los proveedores dedicados exigen verificar un dominio propio para enviar sin restricciones a destinatarios arbitrarios — no hay dominio propio en este proyecto. Gmail SMTP es gratis (~500 correos/día, muy por encima del volumen de una prueba técnica), no exige verificación de dominio, y se integra con el mismo patrón de configuración que ya usa `Jwt:Key` (valor no sensible en `appsettings.json`, la contraseña de aplicación solo en `appsettings.Development.json` local/variables de entorno en Docker — nunca en el repo).
+- **MailKit y no `System.Net.Mail.SmtpClient`:** Microsoft marca `SmtpClient` obsoleto y recomienda MailKit explícitamente en su propia documentación; es además el paquete de facto del ecosistema .NET para SMTP.
+- **Hash del token en vez de guardarlo en texto plano:** mismo criterio defensivo que `users.password_hash` — si la tabla se filtra, un atacante no puede tomar cuentas directamente con las filas robadas (tendría que tener también el token crudo, que solo viajó una vez por email).
+- **Respuesta genérica en `forgot-password`:** sin esto, un atacante podría usar el endpoint para determinar qué correos existen en el sistema comparando respuestas (200 vs. 404) — un vector de enumeración de usuarios conocido en flujos de recuperación de contraseña.
+- **Expiración de 30 minutos, un solo uso:** ventana corta porque es un mecanismo de alto impacto (permite tomar control de la cuenta), más corta que el JWT de sesión (2h) porque además es de un solo uso — no hace falta que dure lo mismo que una sesión activa.
+- **`Program.cs` registra `IEmailSender`/`SmtpEmailSender` con `AddScoped`**, mismo patrón de DI nativa que el resto del proyecto (`Repository por agregado`, sección "Patrones de diseño del backend").
+
+**Alternativas consideradas:**
+- Reset por administrador (sin email) — descartada por decisión explícita del usuario: se prefirió el flujo de autoservicio por email, más cercano a lo que evalúa el PDF en un sistema con login real.
+- Pregunta de seguridad / código de recuperación sin email — descartada por ser menos estándar y no más simple de implementar dado que ya existía el placeholder de "recuperar acceso" pensado para un flujo por correo.
+- SendGrid/Brevo/Resend (proveedores dedicados) — descartados por la necesidad de verificar dominio propio para envío sin restricciones, que este proyecto no tiene.
+
+**Consecuencias / limitaciones conocidas (fuera de alcance por tiempo):**
+- No hay rate limiting sobre `forgot-password` — alguien podría spamear el endpoint con un email válido y generar muchos correos. Aceptado conscientemente por el plazo de entrega, mismo criterio que la limitación ya documentada sobre JWT robado (sección "Autenticación": mitigación parcial, no solución completa).
+- El envío de correo es síncrono dentro del request (`await _emailSender.SendAsync(...)` en `AuthService.ForgotPasswordAsync`) — si Gmail SMTP está lento o caído, el endpoint tarda o falla junto con él. Para el volumen de esta prueba no justifica una cola de envío asíncrona.
+- La tabla `password_reset_tokens` se agregó a `01-schema.sql` sobre un volumen de Postgres ya inicializado — igual que `03-seed.sql`, hay que aplicar el `CREATE TABLE`/`CREATE INDEX` a mano una vez (DBeaver o `psql`) contra la base ya levantada.

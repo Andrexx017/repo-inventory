@@ -66,6 +66,22 @@ CREATE TABLE users (
     -- del backend, igual que los totales agregados de purchase_orders/sales.
 );
 
+-- [DETALLE]
+-- Tokens de un solo uso para el flujo "olvidé mi contraseña" (recuperación por
+-- email). Se guarda el hash SHA-256 del token, nunca el token en texto plano
+-- (mismo criterio defensivo que password_hash: si esta tabla se filtra, los
+-- tokens no quedan directamente usables). ON DELETE CASCADE a propósito, a
+-- diferencia de branch_id/role_id en users (RESTRICT): un token de reset no
+-- tiene ningún sentido de negocio si el usuario dueño ya no existe.
+CREATE TABLE password_reset_tokens (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash  TEXT        NOT NULL UNIQUE,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    used_at     TIMESTAMPTZ,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ---------------------------------------------------------------------
 -- Catálogo de productos
 -- ---------------------------------------------------------------------

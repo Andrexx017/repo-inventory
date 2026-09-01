@@ -1,0 +1,328 @@
+import { useEffect, useState } from 'react';
+import { getUser } from '../../../shared/apiClient';
+import { getBranches } from '../../auth/api/branchesApi';
+import { getProducts } from '../../catalog/api/productsApi';
+import { getSuppliers } from '../api/suppliersApi';
+import {
+  getPurchaseOrders,
+  createPurchaseOrder,
+  approvePurchaseOrder,
+  cancelPurchaseOrder,
+  createPurchaseReceipt,
+  getPurchaseReceipts,
+} from '../api/purchaseOrdersApi';
+
+// Estados alcanzables desde el backend (PurchaseOrderService) — 'sent' está en
+// el CHECK de la tabla pero el flujo real todavía no lo usa (draft -> confirmed
+// directo), así que no aparece acá.
+export const ORDER_STATUS_LABELS = {
+  draft: 'BORRADOR',
+  confirmed: 'CONFIRMADA',
+  partially_received: 'PARCIAL',
+  fully_received: 'COMPLETA',
+  cancelled: 'CANCELADA',
+};
+
+const NON_CANCELLABLE_STATUSES = new Set(['partially_received', 'fully_received', 'cancelled']);
+const RECEIVABLE_STATUSES = new Set(['confirmed', 'partially_received']);
+
+function emptyLine() {
+  return { productId: '', quantity: '', unitPrice: '', discountPct: '0' };
+}
+
+export function usePurchases() {
+  const user = getUser();
+  const isGeneralAdmin = user?.role === 'general_admin';
+  const isInventoryOperator = user?.role === 'inventory_operator';
+  const isBranchManager = user?.role === 'branch_manager';
+  // RF-04: general_admin tiene "visibilidad y permisos totales" — puede
+  // registrar/recibir órdenes (como inventory_operator) y aprobarlas (como
+  // branch_manager) en cualquier sucursal, mismo criterio ya aplicado en
+  // Inventario (sección 2.14). No tiene sucursal propia, así que a diferencia
+  // de los otros dos roles necesita elegir una (ver branches/setBranchId abajo).
+  const canManageOrders = isInventoryOperator || isGeneralAdmin;
+  const canApproveRole = isBranchManager || isGeneralAdmin;
+
+  const [branches, setBranches] = useState([]);
+  const [branchId, setBranchId] = useState(user?.branchId ? String(user.branchId) : '');
+  const [suppliers, setSuppliers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [tab, setTab] = useState('ordenes');
+  const [supplierFilter, setSupplierFilter] = useState('');
+
+  const [supplierId, setSupplierId] = useState('');
+  const [paymentTermDays, setPaymentTermDays] = useState('');
+  const [lines, setLines] = useState([emptyLine()]);
+  const [formError, setFormError] = useState('');
+
+  const [receiptOrder, setReceiptOrder] = useState(null);
+  const [receiptPending, setReceiptPending] = useState({});
+  const [receiptQuantities, setReceiptQuantities] = useState({});
+  const [receiptNotes, setReceiptNotes] = useState('');
+  const [receiptError, setReceiptError] = useState('');
+
+  async function loadReferenceData() {
+    try {
+      const [suppliersData, productsData] = await Promise.all([getSuppliers(), getProducts()]);
+      setSuppliers(suppliersData);
+      setProducts(productsData);
+
+      // general_admin no tiene sucursal propia (getUser().branchId es null) —
+      // a diferencia de los otros dos roles, necesita elegir una para poder
+      // operar. Se le trae la lista completa y se le arma un valor por
+      // defecto, mismo criterio que useInventory.js (sección 2.14).
+      if (isGeneralAdmin) {
+        const branchesData = await getBranches();
+        setBranches(branchesData);
+        if (!branchId && branchesData.length > 0) {
+          setBranchId(String(branchesData[0].id));
+        }
+      }
+    } catch (err) {
+      setError(err.message || 'No se pudieron cargar proveedores/productos.');
+    }
+  }
+
+  async function loadOrders() {
+    if (!branchId) return;
+
+    setLoading(true);
+    try {
+      const data = await getPurchaseOrders(branchId, supplierFilter || undefined);
+      setOrders(data);
+    } catch (err) {
+      setError(err.message || 'No se pudieron cargar las órdenes de compra.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadReferenceData();
+  }, []);
+
+  useEffect(() => {
+    loadOrders();
+  }, [branchId, supplierFilter]);
+
+  function resetOrderForm() {
+    setSupplierId('');
+    setPaymentTermDays('');
+    setLines([emptyLine()]);
+  }
+
+  function addLine() {
+    setLines((prev) => [...prev, emptyLine()]);
+  }
+
+  function removeLine(index) {
+    setLines((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateLine(index, field, value) {
+    setLines((prev) => prev.map((line, i) => (i === index ? { ...line, [field]: value } : line)));
+  }
+
+  function lineAmounts(line) {
+    const quantity = Number(line.quantity) || 0;
+    const unitPrice = Number(line.unitPrice) || 0;
+    const discountPct = Number(line.discountPct) || 0;
+    const gross = quantity * unitPrice;
+    const net = gross * (1 - discountPct / 100);
+    return { gross, net };
+  }
+
+  const orderTotals = lines.reduce(
+    (acc, line) => {
+      const { gross, net } = lineAmounts(line);
+      acc.subtotal += gross;
+      acc.total += net;
+      return acc;
+    },
+    { subtotal: 0, total: 0 }
+  );
+  orderTotals.discount = orderTotals.subtotal - orderTotals.total;
+
+  async function handleCreateOrder(e) {
+    e.preventDefault();
+    setFormError('');
+
+    if (!supplierId) {
+      setFormError('Seleccioná un proveedor.');
+      return;
+    }
+
+    const validLines = lines.filter((l) => l.productId && Number(l.quantity) > 0);
+    if (validLines.length === 0) {
+      setFormError('Agregá al menos una línea con producto y cantidad.');
+      return;
+    }
+
+    const dto = {
+      supplierId: Number(supplierId),
+      paymentTermDays: paymentTermDays === '' ? null : Number(paymentTermDays),
+      items: validLines.map((l) => ({
+        productId: Number(l.productId),
+        quantity: Number(l.quantity),
+        unitPrice: Number(l.unitPrice) || 0,
+        discountPct: Number(l.discountPct) || 0,
+      })),
+    };
+
+    try {
+      await createPurchaseOrder(branchId, dto);
+      resetOrderForm();
+      await loadOrders();
+    } catch (err) {
+      setFormError(err.message || 'No se pudo crear la orden de compra.');
+    }
+  }
+
+  async function handleApprove(order) {
+    try {
+      await approvePurchaseOrder(branchId, order.id);
+      await loadOrders();
+    } catch (err) {
+      setError(err.message || 'No se pudo aprobar la orden.');
+    }
+  }
+
+  async function handleCancel(order) {
+    try {
+      await cancelPurchaseOrder(branchId, order.id);
+      await loadOrders();
+    } catch (err) {
+      setError(err.message || 'No se pudo cancelar la orden.');
+    }
+  }
+
+  async function openReceipt(order) {
+    setReceiptError('');
+    setReceiptNotes('');
+
+    try {
+      const receipts = await getPurchaseReceipts(branchId, order.id);
+      const alreadyReceived = {};
+      receipts.forEach((receipt) => {
+        receipt.items.forEach((item) => {
+          alreadyReceived[item.purchaseOrderItemId] =
+            (alreadyReceived[item.purchaseOrderItemId] || 0) + item.receivedQuantity;
+        });
+      });
+
+      const pending = {};
+      const defaults = {};
+      order.items.forEach((item) => {
+        const received = alreadyReceived[item.id] || 0;
+        const pendingQty = item.quantity - received;
+        pending[item.id] = pendingQty;
+        defaults[item.id] = pendingQty > 0 ? String(pendingQty) : '0';
+      });
+
+      setReceiptPending(pending);
+      setReceiptQuantities(defaults);
+      setReceiptOrder(order);
+    } catch (err) {
+      setError(err.message || 'No se pudo cargar el historial de recepciones.');
+    }
+  }
+
+  function closeReceipt() {
+    setReceiptOrder(null);
+  }
+
+  function setReceiptQuantity(itemId, value) {
+    setReceiptQuantities((prev) => ({ ...prev, [itemId]: value }));
+  }
+
+  async function handleSubmitReceipt(e) {
+    e.preventDefault();
+    setReceiptError('');
+
+    const items = Object.entries(receiptQuantities)
+      .map(([purchaseOrderItemId, value]) => ({
+        purchaseOrderItemId: Number(purchaseOrderItemId),
+        receivedQuantity: Number(value) || 0,
+      }))
+      .filter((item) => item.receivedQuantity > 0);
+
+    if (items.length === 0) {
+      setReceiptError('Ingresá al menos una cantidad recibida mayor a cero.');
+      return;
+    }
+
+    try {
+      await createPurchaseReceipt(branchId, receiptOrder.id, { notes: receiptNotes || null, items });
+      setReceiptOrder(null);
+      await loadOrders();
+    } catch (err) {
+      setReceiptError(err.message || 'No se pudo confirmar la recepción.');
+    }
+  }
+
+  function canApprove(order) {
+    return canApproveRole && order.status === 'draft';
+  }
+
+  function canCancel(order) {
+    return !NON_CANCELLABLE_STATUSES.has(order.status);
+  }
+
+  function canReceive(order) {
+    return canManageOrders && RECEIVABLE_STATUSES.has(order.status);
+  }
+
+  return {
+    branches,
+    branchId,
+    setBranchId,
+    isGeneralAdmin,
+    isInventoryOperator,
+    isBranchManager,
+    canManageOrders,
+    suppliers,
+    products,
+    orders,
+    loading,
+    error,
+
+    tab,
+    setTab,
+    supplierFilter,
+    setSupplierFilter,
+
+    supplierId,
+    setSupplierId,
+    paymentTermDays,
+    setPaymentTermDays,
+    lines,
+    addLine,
+    removeLine,
+    updateLine,
+    lineAmounts,
+    orderTotals,
+    formError,
+    handleCreateOrder,
+
+    handleApprove,
+    handleCancel,
+    canApprove,
+    canCancel,
+    canReceive,
+
+    receiptOrder,
+    receiptPending,
+    receiptQuantities,
+    setReceiptQuantity,
+    receiptNotes,
+    setReceiptNotes,
+    receiptError,
+    openReceipt,
+    closeReceipt,
+    handleSubmitReceipt,
+  };
+}

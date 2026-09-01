@@ -74,6 +74,46 @@
     background: var(--danger-soft);
 }
 
+.status-pill-warn {
+    color: var(--warning);
+    background: var(--warning-soft);
+}
+
+.status-pill-accent {
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.status-pill-cyan {
+    color: var(--cyan);
+    background: rgba(79, 184, 217, 0.15);
+}
+
+.status-pill-muted {
+    color: var(--text-muted);
+    background: rgba(139, 147, 160, 0.15);
+}
+
+.mono {
+    font-family: var(--font-mono);
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-success {
+    color: var(--success);
+}
+
+.text-warning {
+    color: var(--warning);
+}
+
+.text-danger {
+    color: var(--danger);
+}
+
 .table-action {
     color: var(--cyan);
     font-size: 12.5px;

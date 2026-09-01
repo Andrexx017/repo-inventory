@@ -10,5 +10,9 @@
   },
   "Jwt": {
     "Key": "REEMPLAZAR_CON_LA_MISMA_CLAVE_DEL_.ENV_JWT_KEY"
+  },
+  "Smtp": {
+    "User": "REEMPLAZAR_CON_TU_CORREO_DE_GMAIL",
+    "Password": "REEMPLAZAR_CON_TU_CONTRASEÑA_DE_APLICACION_DE_GMAIL"
   }
 }

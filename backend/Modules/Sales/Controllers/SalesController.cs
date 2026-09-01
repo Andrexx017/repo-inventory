@@ -9,7 +9,7 @@ namespace Inventory.Modules.Sales.Controllers;
 
 [ApiController]
 [Route("api/sales")]
-[Authorize(Roles = RoleCodes.BranchManager + "," + RoleCodes.InventoryOperator)]
+[Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.BranchManager + "," + RoleCodes.InventoryOperator)]
 public class SalesController : ControllerBase
 {
     private readonly ISaleService _saleService;
@@ -21,10 +21,11 @@ public class SalesController : ControllerBase
         _authorizationService = authorizationService;
     }
 
-    // UC-18: solo el Operador de inventario registra la venta, sobre su propia
-    // sucursal (SameBranch), igual criterio que Create en PurchaseOrdersController.
+    // UC-18: el Operador de inventario registra la venta (más general_admin,
+    // RF-04), sobre su propia sucursal (SameBranch), igual criterio que Create
+    // en PurchaseOrdersController.
     [HttpPost("{branchId:long}")]
-    [Authorize(Roles = RoleCodes.InventoryOperator)]
+    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.InventoryOperator)]
     public async Task<ActionResult<SaleDto>> Create(long branchId, CreateSaleDto request)
     {
         var authResult = await _authorizationService.AuthorizeAsync(User, branchId, "SameBranch");

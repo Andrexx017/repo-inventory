@@ -29,4 +29,24 @@ public class AuthController : ControllerBase
 
         return Ok(result);
     }
+
+    // Respuesta siempre 200 con el mismo mensaje, exista o no el email — evita
+    // que alguien enumere qué correos están registrados (ver AuthService).
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<ActionResult> ForgotPassword(ForgotPasswordRequestDto request)
+    {
+        await _authService.ForgotPasswordAsync(request);
+
+        return Ok(new { message = "Si el correo está registrado, vas a recibir un enlace para restablecer tu contraseña." });
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<ActionResult> ResetPassword(ResetPasswordRequestDto request)
+    {
+        await _authService.ResetPasswordAsync(request);
+
+        return Ok(new { message = "Contraseña actualizada correctamente." });
+    }
 }

@@ -1,5 +1,6 @@
 using System.Text;
 using Inventory.Infrastructure.Auth;
+using Inventory.Infrastructure.Email;
 using Inventory.Infrastructure.Persistence;
 using Inventory.Modules.Auth.Repositories;
 using Inventory.Modules.Auth.Services;
@@ -34,7 +35,7 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader()
             .AllowAnyMethod());
 });
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// exposicion de endpoints para documentacion, etc
 builder.Services.AddOpenApi();
 //conexion con la base de datos
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -44,6 +45,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IBranchRepository, BranchRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();

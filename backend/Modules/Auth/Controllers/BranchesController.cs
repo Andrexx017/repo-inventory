@@ -6,9 +6,12 @@ using Microsoft.AspNetCore.Mvc;
 namespace Inventory.Modules.Auth.Controllers;
 
 // RF-03: crear, editar y desactivar sucursales — solo Administrador general.
+// RF-06: consultar sucursales (solo lectura) es de cualquier rol autenticado —
+// el módulo Inventario necesita poder listarlas para su selector de sucursal,
+// mismo criterio que ya separa los GET/POST de ProductsController (RF-10).
 [ApiController]
 [Route("api/branches")]
-[Authorize(Roles = RoleCodes.GeneralAdmin)]
+[Authorize]
 public class BranchesController : ControllerBase
 {
     private readonly IBranchService _branchService;
@@ -30,6 +33,7 @@ public class BranchesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = RoleCodes.GeneralAdmin)]
     public async Task<ActionResult<BranchDto>> Create(CreateBranchDto request)
     {
         var branch = await _branchService.CreateAsync(request);
@@ -37,6 +41,7 @@ public class BranchesController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Roles = RoleCodes.GeneralAdmin)]
     public async Task<ActionResult<BranchDto>> Update(long id, UpdateBranchDto request)
     {
         var branch = await _branchService.UpdateAsync(id, request);

@@ -125,3 +125,23 @@
 - Un usuario por rol permite probar la autorización por rol/sucursal (Decisión de autenticación) desde el primer módulo implementado, sin tener que crear usuarios manualmente cada vez.
 
 **Consecuencias:** los scripts de `docker-entrypoint-initdb.d` solo corren automáticamente si el volumen de Postgres está vacío — en un volumen ya inicializado (como el de este proyecto, cargado a mano por DBeaver) hay que aplicar `03-seed.sql` una vez a mano. Documentado en el propio script.
+
+---
+
+## Recuperación de contraseña: tabla `password_reset_tokens`
+
+**Contexto:** el login no tenía forma de recuperar el acceso si un usuario olvidaba su contraseña. Se decide el flujo estándar "olvidé mi contraseña": token de un solo uso enviado por email, con vencimiento corto.
+
+**Decisión:** tabla de detalle `password_reset_tokens` (`id`, `user_id` FK a `users`, `token_hash`, `expires_at`, `used_at`, `created_at`), agregada en `01-schema.sql` justo después de `users`, con índice sobre `user_id` en `02-indexes.sql`.
+
+**Justificación:**
+- Se guarda `token_hash` (SHA-256 del token, no el token en texto plano) — mismo criterio defensivo que `users.password_hash`: si la tabla se filtra, los tokens no quedan directamente usables para tomar una cuenta.
+- `ON DELETE CASCADE` en `user_id`, a diferencia de `users.branch_id`/`role_id` (`RESTRICT`): un token de reset no tiene ningún sentido de negocio si el usuario dueño ya no existe, así que no hace falta protegerlo de un borrado en cascada.
+- `used_at` nullable en vez de borrar la fila al usarse: mantiene trazabilidad de que un token fue efectivamente usado (o expiró sin usarse), consistente con el criterio de auditoría que ya sigue `inventory_movements`/`transfer_events`.
+- No hace falta un `CHECK` de expiración en la base — la validación de "vigente y no usado" (`used_at IS NULL AND expires_at > now()`) la resuelve el backend al leer, mismo patrón que las reglas de `backend/docs/reglas-negocio-criticas.md`.
+
+**Alternativas consideradas:**
+- Guardar el token en texto plano — descartado por el mismo motivo que nunca se guardó `password_hash` en claro.
+- Reutilizar una columna en `users` (ej. `reset_token`) en vez de tabla propia — descartado porque solo permitiría un token vigente a la vez de forma implícita y mezclaría un dato transitorio (vida de minutos) dentro de la tabla maestra de usuarios.
+
+**Consecuencias:** como con cualquier cambio a `01-schema.sql` sobre un volumen de Postgres ya inicializado, el `CREATE TABLE`/`CREATE INDEX` no corre solo — hay que aplicarlo a mano (DBeaver o `psql`) contra la base ya levantada, mismo caso que `03-seed.sql` arriba.

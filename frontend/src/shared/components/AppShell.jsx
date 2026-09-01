@@ -71,34 +71,34 @@ export default function AppShell({ title, children }) {
                         Catálogo
                     </NavLink>
 
-                    {/* Módulos todavía sin pantalla (ver RUTA.md) — visibles en la
-                        navegación porque ya forman parte del diseño aprobado, pero
-                        sin ruta real hasta que se implemente cada uno. */}
-                    <span className="sidebar-link sidebar-link-disabled">
+                    <NavLink to="/inventory" className={navLinkClass}>
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M12 2 3 7v10l9 5 9-5V7z" />
                             <path d="M3 7l9 5 9-5" />
                             <path d="M12 12v10" />
                         </svg>
                         Inventario
-                    </span>
+                    </NavLink>
 
-                    <span className="sidebar-link sidebar-link-disabled">
+                    <NavLink to="/purchases" className={navLinkClass}>
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                             <circle cx="9" cy="20" r="1.4" /><circle cx="17" cy="20" r="1.4" />
                             <path d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 7H6" />
                         </svg>
                         Compras
-                    </span>
+                    </NavLink>
 
-                    <span className="sidebar-link sidebar-link-disabled">
+                    <NavLink to="/sales" className={navLinkClass}>
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" />
                             <path d="M9 8h6M9 12h6" />
                         </svg>
                         Ventas
-                    </span>
+                    </NavLink>
 
+                    {/* Módulos todavía sin pantalla (ver RUTA.md) — visibles en la
+                        navegación porque ya forman parte del diseño aprobado, pero
+                        sin ruta real hasta que se implemente cada uno. */}
                     <span className="sidebar-link sidebar-link-disabled">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M2 7h11v9H2z" />

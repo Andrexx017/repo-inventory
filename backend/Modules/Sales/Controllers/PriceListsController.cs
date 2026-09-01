@@ -6,12 +6,12 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Inventory.Modules.Sales.Controllers;
 
-// Mismo criterio que SuppliersController: la matriz de casos de uso deja a
-// general_admin sin acceso a Ventas — solo branch_manager (consulta) e
-// inventory_operator (registra) necesitan el <select> de listas de precio.
+// Mismo criterio que SuppliersController: branch_manager (consulta) e
+// inventory_operator (registra) necesitan el <select> de listas de precio,
+// más general_admin (RF-04: "visibilidad y permisos totales").
 [ApiController]
 [Route("api/price-lists")]
-[Authorize(Roles = RoleCodes.BranchManager + "," + RoleCodes.InventoryOperator)]
+[Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.BranchManager + "," + RoleCodes.InventoryOperator)]
 public class PriceListsController : ControllerBase
 {
     private readonly IPriceListService _priceListService;

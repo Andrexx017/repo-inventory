@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useLogin } from '../hooks/useLogin';
 import { useTheme } from '../../../shared/hooks/useTheme';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
@@ -104,9 +105,9 @@ export default function LoginPage() {
                             <span>Mantener sesión</span>
                         </label>
 
-                        <a href="#" onClick={(e) => e.preventDefault()}>
+                        <Link to="/forgot-password">
                             Recuperar acceso
-                        </a>
+                        </Link>
                     </div>
 
                     <button

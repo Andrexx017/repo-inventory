@@ -217,6 +217,28 @@
     font-size: 13px;
 }
 
+.login-success {
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--success-soft);
+    color: var(--success);
+    font-size: 13px;
+}
+
+.login-back-link {
+    text-align: center;
+    font-size: 13px;
+}
+
+.login-back-link a {
+    color: var(--cyan);
+    text-decoration: none;
+}
+
+.login-back-link a:hover {
+    text-decoration: underline;
+}
+
 .login-footer-tag {
     font-family: var(--font-mono);
     font-size: 10px;

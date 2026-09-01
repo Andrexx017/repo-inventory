@@ -12,6 +12,10 @@
 CREATE INDEX idx_users_branch ON users (branch_id);
 CREATE INDEX idx_users_role ON users (role_id);
 
+-- Recuperación de contraseña: invalidar tokens previos de un usuario al pedir
+-- uno nuevo (el UNIQUE de token_hash ya cubre la búsqueda por token).
+CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens (user_id);
+
 -- Catálogo: filtros habituales por categoría/unidad base.
 CREATE INDEX idx_products_category ON products (category_id);
 CREATE INDEX idx_products_base_unit ON products (base_unit_id);

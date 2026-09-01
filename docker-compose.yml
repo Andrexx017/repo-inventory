@@ -39,6 +39,8 @@ services:
       # de .NET). Ver Infrastructure/Persistence/AppDbContext.cs y Program.cs.
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       Jwt__Key: "${JWT_KEY}"
+      Smtp__User: "${SMTP_USER}"
+      Smtp__Password: "${SMTP_PASSWORD}"
 
     ports:
       - "5107:8080"
