@@ -6,6 +6,7 @@ using Inventory.Modules.Auth.Repositories;
 using Inventory.Modules.Auth.Services;
 using Inventory.Modules.Catalog.Repositories;
 using Inventory.Modules.Catalog.Services;
+using Inventory.Modules.Dashboard.Services;
 using Inventory.Modules.Inventory.Repositories;
 using Inventory.Modules.Inventory.Services;
 using Inventory.Modules.Purchases.Repositories;
@@ -73,6 +74,9 @@ builder.Services.AddScoped<ISaleRepository, SaleRepository>();
 builder.Services.AddScoped<ISaleService, SaleService>();
 builder.Services.AddScoped<ITransferRepository, TransferRepository>();
 builder.Services.AddScoped<ITransferService, TransferService>();
+// Dashboard no tiene tablas propias: solo se registra el Service, que a su vez
+// inyecta los Services de Auth/Sales/Inventory/Transfers ya registrados arriba.
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 builder.Services.AddSingleton<IAuthorizationHandler, BranchAccessHandler>();
 
