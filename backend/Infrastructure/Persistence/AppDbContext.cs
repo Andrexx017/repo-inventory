@@ -3,6 +3,7 @@ using Inventory.Modules.Catalog.Entities;
 using Inventory.Modules.Inventory.Entities;
 using Inventory.Modules.Purchases.Entities;
 using Inventory.Modules.Sales.Entities;
+using Inventory.Modules.Transfers.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Infrastructure.Persistence;
@@ -36,6 +37,10 @@ public class AppDbContext : DbContext
     public DbSet<PriceListItem> PriceListItems => Set<PriceListItem>();
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleItem> SaleItems => Set<SaleItem>();
+
+    public DbSet<Transfer> Transfers => Set<Transfer>();
+    public DbSet<TransferItem> TransferItems => Set<TransferItem>();
+    public DbSet<TransferEvent> TransferEvents => Set<TransferEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

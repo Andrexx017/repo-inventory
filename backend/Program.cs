@@ -12,6 +12,8 @@ using Inventory.Modules.Purchases.Repositories;
 using Inventory.Modules.Purchases.Services;
 using Inventory.Modules.Sales.Repositories;
 using Inventory.Modules.Sales.Services;
+using Inventory.Modules.Transfers.Repositories;
+using Inventory.Modules.Transfers.Services;
 using Inventory.Shared.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -69,6 +71,8 @@ builder.Services.AddScoped<IPriceListRepository, PriceListRepository>();
 builder.Services.AddScoped<IPriceListService, PriceListService>();
 builder.Services.AddScoped<ISaleRepository, SaleRepository>();
 builder.Services.AddScoped<ISaleService, SaleService>();
+builder.Services.AddScoped<ITransferRepository, TransferRepository>();
+builder.Services.AddScoped<ITransferService, TransferService>();
 
 builder.Services.AddSingleton<IAuthorizationHandler, BranchAccessHandler>();
 
