@@ -11,6 +11,8 @@ using Inventory.Modules.Inventory.Repositories;
 using Inventory.Modules.Inventory.Services;
 using Inventory.Modules.Purchases.Repositories;
 using Inventory.Modules.Purchases.Services;
+using Inventory.Modules.Reports.Services;
+using Inventory.Modules.Reports.Services.Exporters;
 using Inventory.Modules.Sales.Repositories;
 using Inventory.Modules.Sales.Services;
 using Inventory.Modules.Transfers.Repositories;
@@ -20,7 +22,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using QuestPDF.Infrastructure;
 using Scalar.AspNetCore;
+
+// RF-35: licencia Community de QuestPDF — se fija una sola vez al arrancar,
+// antes de generar cualquier documento (si no, QuestPDF tira excepción al
+// primer GeneratePdf()). Gratuita para el uso de este proyecto (ver
+// backend/docs/decisions.md).
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -77,6 +86,12 @@ builder.Services.AddScoped<ITransferService, TransferService>();
 // Dashboard no tiene tablas propias: solo se registra el Service, que a su vez
 // inyecta los Services de Auth/Sales/Inventory/Transfers ya registrados arriba.
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+// Reports (RF-35): tampoco tiene tablas propias. Los dos AddScoped<IReportExporter, ...>
+// son el Strategy Pattern armado vía DI — ReportService inyecta IEnumerable<IReportExporter>
+// y recibe ambas implementaciones sin un switch de formatos.
+builder.Services.AddScoped<IReportExporter, PdfReportExporter>();
+builder.Services.AddScoped<IReportExporter, ExcelReportExporter>();
+builder.Services.AddScoped<IReportService, ReportService>();
 
 builder.Services.AddSingleton<IAuthorizationHandler, BranchAccessHandler>();
 

@@ -203,3 +203,26 @@ Dos módulos no tienen `Repositories/` ni `Entities/` propias porque no tienen t
 - Notificar a TODOS los usuarios de la sucursal (no solo `branch_manager`) — descartada: el Operador de inventario ya ve la alerta en la pantalla (RF-09/RF-34 la exponen vía `GET /alerts`), el correo tiene más sentido como aviso a quien "aprueba"/supervisa la sucursal.
 
 **Consecuencias:** si más adelante se necesita notificar a más roles o por otro canal (ej. push, Slack), el punto de extensión ya está aislado en `InventoryService.NotifyAlertByEmailAsync` — no hay que tocar la lógica de detección de umbral.
+
+---
+
+## Exportación de reportes (RF-35): QuestPDF + ClosedXML, vía Strategy ya decidido
+
+**Contexto:** `backend/docs/decisions.md` (sección "Patrones de diseño del backend") ya había decidido el Strategy Pattern (`IReportExporter` → `PdfReportExporter`/`ExcelReportExporter`) desde Fase 1, dejando pendiente solo la elección de librería concreta para cada formato — este es el pendiente que se resuelve acá, al implementar la capa.
+
+**Decisión:**
+- **PDF: QuestPDF** (`2025.7.0`). Licencia Community — gratuita para este uso (proyecto sin fines comerciales, muy por debajo del umbral de facturación que exige licencia paga); se fija una sola vez con `QuestPDF.Settings.License = LicenseType.Community;` en `Program.cs`, antes de que se genere el primer documento.
+- **Excel: ClosedXML** (`0.104.2`), MIT.
+- Ambas librerías consumen el mismo modelo genérico, `ReportTable` (título + columnas + filas, todo `string`) — ninguna conoce si los datos vienen de movimientos de inventario, ventas o transferencias; ese mapeo vive en `ReportService`, no en los exporters.
+
+**Justificación:**
+- **QuestPDF sobre iText7/PdfSharp:** API fluida y declarativa (`Document.Create(container => ...)`, describe la estructura del documento en vez de posicionar texto por coordenadas absolutas como PdfSharp de más bajo nivel) — para una tabla con encabezado, es la que exige menos código y menos superficie de error. iText7 se descartó por su licencia AGPL/comercial (obligaría a decidir sobre licenciamiento comercial para un proyecto que no lo necesita); QuestPDF Community resuelve ese punto para el alcance de esta prueba.
+- **ClosedXML sobre Interop de Excel o EPPlus:** no depende de tener Excel/Office instalado en la máquina que genera el archivo (a diferencia de Interop, que sí lo exige y además no es soportado en servidor por Microsoft); EPPlus cambió a licencia comercial para uso no personal en versiones recientes, ClosedXML sigue siendo MIT sin ambigüedad.
+- **Un modelo genérico (`ReportTable`) en vez de un DTO de reporte por tipo:** evita que cada exporter necesite tres implementaciones (una por tipo de reporte) — con una sola tabla genérica, agregar un cuarto tipo de reporte en el futuro (ej. compras) solo exige un método nuevo en `ReportService` que arme un `ReportTable`, sin tocar los exporters.
+
+**Alternativas consideradas:**
+- **iText7** — descartado por licencia AGPL (exige liberar el código fuente completo del proyecto que lo use, o pagar licencia comercial) — no se justifica para una prueba técnica.
+- **EPPlus** — descartado por su cambio reciente a licencia comercial (`NonCommercial`/`Commercial`) para el caso de uso de este proyecto; ClosedXML resuelve lo mismo sin esa fricción.
+- **Migrar el filtro de fecha a una consulta SQL con `WHERE` en vez de LINQ-to-Objects en memoria** — descartada por ahora, mismo criterio ya aplicado en Dashboard/RF-28: el volumen esperado de esta prueba no lo justifica; queda identificado como punto de optimización si el volumen creciera.
+
+**Consecuencias:** dos dependencias nuevas en `inventory.csproj` (`QuestPDF`, `ClosedXML`) — ninguna requiere infraestructura adicional (no exigen un servicio externo, corren embebidas en el proceso del backend). El PDF se genera en memoria (`byte[]`) y se devuelve directo en la respuesta HTTP (`File(...)`), sin escribir a disco temporal.
