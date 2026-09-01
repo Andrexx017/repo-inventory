@@ -1,0 +1,294 @@
+.trf-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.trf-kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.trf-kpi-label {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.trf-kpi-value {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.trf-kpi-value-warning {
+    color: var(--warning);
+}
+
+.trf-kpi-value-cyan {
+    color: var(--cyan);
+}
+
+.trf-kpi-sub {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.trf-tabs {
+    display: flex;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    width: fit-content;
+}
+
+.trf-tab {
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: var(--font-sans);
+}
+
+.trf-tab-active {
+    background: var(--accent);
+    color: #1a1204;
+}
+
+[data-theme='light'] .trf-tab-active {
+    color: #fffaf5;
+}
+
+.trf-lines-table {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.trf-lines-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.trf-lines-table th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.trf-lines-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.trf-lines-table tr:last-child td {
+    border-bottom: none;
+}
+
+.trf-lines-table input,
+.trf-lines-table select {
+    width: 100%;
+    padding: 7px 9px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+}
+
+.trf-add-line {
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    margin-bottom: 12px;
+}
+
+.trf-remove-line {
+    color: var(--danger);
+    font-size: 12px;
+    font-weight: 600;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.trf-form-note {
+    margin: 0 0 12px;
+    color: var(--text-muted);
+    font-size: 11.5px;
+}
+
+.trf-form-success {
+    color: var(--success);
+    font-size: 13px;
+    margin: 0 0 12px;
+}
+
+.trf-actions {
+    white-space: nowrap;
+    display: flex;
+    gap: 12px;
+}
+
+.trf-action-view {
+    color: var(--cyan);
+    font-size: 12.5px;
+    font-weight: 600;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.trf-action-prepare,
+.trf-action-ship {
+    color: var(--warning);
+    font-size: 12.5px;
+    font-weight: 600;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.trf-action-receive {
+    color: var(--success);
+    font-size: 12.5px;
+    font-weight: 600;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.trf-route {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.trf-route-arrow {
+    color: var(--text-muted);
+    flex: 0 0 auto;
+}
+
+.trf-shortage-note {
+    display: flex;
+    gap: 10px;
+    background: var(--warning-soft);
+    border: 1px solid var(--warning);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 4px 0 14px;
+    color: var(--warning);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.trf-logistics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px 20px;
+    margin-bottom: 16px;
+}
+
+.trf-logistics-field .trf-lf-label {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.trf-logistics-field .trf-lf-value {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text);
+}
+
+.trf-stepper {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 4px;
+}
+
+.trf-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 140px;
+    flex: 0 0 auto;
+}
+
+.trf-step-dot {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.trf-step-dot-done {
+    background: var(--success);
+    color: #06210f;
+}
+
+.trf-step-dot-current {
+    background: var(--accent);
+    color: #1a1204;
+}
+
+.trf-step-dot-pending {
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    color: var(--text-muted);
+}
+
+.trf-step-label {
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.trf-step-date {
+    font-size: 10.5px;
+    font-family: var(--font-mono);
+    margin-top: 3px;
+}
+
+.trf-step-line {
+    flex: 1 1 auto;
+    height: 2px;
+    margin-top: 13px;
+    background: var(--border);
+}
+
+.trf-step-line-done {
+    background: var(--success);
+}

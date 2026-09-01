@@ -96,18 +96,18 @@ export default function AppShell({ title, children }) {
                         Ventas
                     </NavLink>
 
-                    {/* Módulos todavía sin pantalla (ver RUTA.md) — visibles en la
-                        navegación porque ya forman parte del diseño aprobado, pero
-                        sin ruta real hasta que se implemente cada uno. */}
-                    <span className="sidebar-link sidebar-link-disabled">
+                    <NavLink to="/transfers" className={navLinkClass}>
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M2 7h11v9H2z" />
                             <path d="M13 10h4l4 3.5V16h-8z" />
                             <circle cx="6.5" cy="18" r="1.7" /><circle cx="16.5" cy="18" r="1.7" />
                         </svg>
                         Transferencias
-                    </span>
+                    </NavLink>
 
+                    {/* Logística no tiene pantalla propia — sus campos (transportista,
+                        fechas, retraso) viven dentro de Transferencias (ver detalle de
+                        cada transferencia), no como módulo separado. */}
                     <span className="sidebar-link sidebar-link-disabled">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                             <circle cx="6" cy="19" r="2" /><circle cx="18" cy="5" r="2" />

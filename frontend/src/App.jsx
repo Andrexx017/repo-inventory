@@ -10,6 +10,7 @@ import Products from './modules/catalog/pages/Products';
 import Inventory from './modules/inventory/pages/Inventory';
 import Purchases from './modules/purchases/pages/Purchases';
 import Sales from './modules/sales/pages/Sales';
+import Transfers from './modules/transfers/pages/Transfers';
 import RequireAuth from './shared/components/RequireAuth';
 import RequireRole from './shared/components/RequireRole';
 
@@ -54,6 +55,14 @@ function App() {
         element={
           <RequireRole roles={['general_admin', 'branch_manager', 'inventory_operator']}>
             <Sales />
+          </RequireRole>
+        }
+      />
+      <Route
+        path="/transfers"
+        element={
+          <RequireRole roles={['general_admin', 'branch_manager', 'inventory_operator']}>
+            <Transfers />
           </RequireRole>
         }
       />
