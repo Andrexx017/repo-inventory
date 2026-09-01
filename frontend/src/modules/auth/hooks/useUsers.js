@@ -18,6 +18,9 @@ export function useUsers() {
   const [active, setActive] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [formError, setFormError] = useState('');
+  const [isRolesModalOpen, setIsRolesModalOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   async function load() {
     try {
@@ -53,6 +56,18 @@ export function useUsers() {
     setEditingId(null);
   }
 
+  function openCreateModal() {
+    resetForm();
+    setFormError('');
+    setIsModalOpen(true);
+  }
+
+  function closeModal() {
+    resetForm();
+    setFormError('');
+    setIsModalOpen(false);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
@@ -79,11 +94,19 @@ export function useUsers() {
         });
       }
 
-      resetForm();
+      closeModal();
       await load();
     } catch (err) {
       setFormError(err.message || 'No se pudo guardar el usuario.');
     }
+  }
+
+  function openRolesModal() {
+    setIsRolesModalOpen(true);
+  }
+
+  function closeRolesModal() {
+    setIsRolesModalOpen(false);
   }
 
   function handleEdit(user) {
@@ -94,14 +117,29 @@ export function useUsers() {
     setBranchId(user.branchId ? String(user.branchId) : '');
     setActive(user.active);
     setEditingId(user.id);
+    setFormError('');
+    setIsModalOpen(true);
   }
 
+  const term = search.trim().toLowerCase();
+  const filteredUsers = term
+    ? users.filter((u) =>
+        u.name.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term))
+    : users;
+
   return {
-    users,
+    users: filteredUsers,
+    totalCount: users.length,
     roles,
     branches,
     loading,
     error,
+    search,
+    setSearch,
+    isModalOpen,
+    openCreateModal,
+    closeModal,
     name,
     setName,
     email,
@@ -120,5 +158,8 @@ export function useUsers() {
     handleSubmit,
     handleEdit,
     resetForm,
+    isRolesModalOpen,
+    openRolesModal,
+    closeRolesModal,
   };
 }

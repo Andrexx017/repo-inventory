@@ -25,4 +25,41 @@ public class PriceListRepository : IPriceListRepository
             i => i.PriceListId == priceListId && i.ProductId == productId);
         return item?.Price;
     }
+
+    public async Task<IReadOnlyList<PriceListItem>> GetItemsAsync(long priceListId) =>
+        await _db.PriceListItems.Where(i => i.PriceListId == priceListId).ToListAsync();
+
+    public async Task UpsertItemAsync(long priceListId, long productId, decimal price)
+    {
+        var existing = await _db.PriceListItems.FirstOrDefaultAsync(
+            i => i.PriceListId == priceListId && i.ProductId == productId);
+
+        if (existing is null)
+        {
+            await _db.PriceListItems.AddAsync(new PriceListItem
+            {
+                PriceListId = priceListId,
+                ProductId = productId,
+                Price = price,
+            });
+        }
+        else
+        {
+            existing.Price = price;
+        }
+
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<bool> RemoveItemAsync(long priceListId, long productId)
+    {
+        var existing = await _db.PriceListItems.FirstOrDefaultAsync(
+            i => i.PriceListId == priceListId && i.ProductId == productId);
+
+        if (existing is null) return false;
+
+        _db.PriceListItems.Remove(existing);
+        await _db.SaveChangesAsync();
+        return true;
+    }
 }

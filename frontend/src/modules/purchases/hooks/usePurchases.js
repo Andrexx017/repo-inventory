@@ -58,6 +58,7 @@ export function usePurchases() {
   const [paymentTermDays, setPaymentTermDays] = useState('');
   const [lines, setLines] = useState([emptyLine()]);
   const [formError, setFormError] = useState('');
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
 
   const [receiptOrder, setReceiptOrder] = useState(null);
   const [receiptPending, setReceiptPending] = useState({});
@@ -113,6 +114,18 @@ export function usePurchases() {
     setSupplierId('');
     setPaymentTermDays('');
     setLines([emptyLine()]);
+  }
+
+  function openOrderModal() {
+    resetOrderForm();
+    setFormError('');
+    setIsOrderModalOpen(true);
+  }
+
+  function closeOrderModal() {
+    resetOrderForm();
+    setFormError('');
+    setIsOrderModalOpen(false);
   }
 
   function addLine() {
@@ -175,7 +188,7 @@ export function usePurchases() {
 
     try {
       await createPurchaseOrder(branchId, dto);
-      resetOrderForm();
+      closeOrderModal();
       await loadOrders();
     } catch (err) {
       setFormError(err.message || 'No se pudo crear la orden de compra.');
@@ -307,6 +320,9 @@ export function usePurchases() {
     orderTotals,
     formError,
     handleCreateOrder,
+    isOrderModalOpen,
+    openOrderModal,
+    closeOrderModal,
 
     handleApprove,
     handleCancel,

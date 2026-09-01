@@ -2,6 +2,22 @@ import AppShell from '../../../shared/components/AppShell';
 import { usePurchases, ORDER_STATUS_LABELS } from '../hooks/usePurchases';
 import './Purchases.css';
 
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 const STATUS_CLASSES = {
   draft: 'status-pill-muted',
   confirmed: 'status-pill-cyan',
@@ -27,6 +43,7 @@ export default function Purchases() {
     supplierId, setSupplierId, paymentTermDays, setPaymentTermDays,
     lines, addLine, removeLine, updateLine, lineAmounts, orderTotals,
     formError, handleCreateOrder,
+    isOrderModalOpen, openOrderModal, closeOrderModal,
     handleApprove, handleCancel, canApprove, canCancel, canReceive,
     receiptOrder, receiptPending, receiptQuantities, setReceiptQuantity,
     receiptNotes, setReceiptNotes, receiptError, openReceipt, closeReceipt, handleSubmitReceipt,
@@ -108,103 +125,12 @@ export default function Purchases() {
           {tab === 'ordenes' && (
             <>
               {canManageOrders && (
-                <form onSubmit={handleCreateOrder} className="form-card">
-                  <h2>Nueva orden de compra</h2>
-
-                  <div className="form-grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
-                    <div className="field">
-                      <label htmlFor="po-supplier">Proveedor</label>
-                      <select id="po-supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} required>
-                        <option value="">Seleccione un proveedor</option>
-                        {suppliers.map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="field">
-                      <label htmlFor="po-term">Plazo de pago (días)</label>
-                      <input
-                        id="po-term"
-                        type="number"
-                        min="0"
-                        value={paymentTermDays}
-                        onChange={(e) => setPaymentTermDays(e.target.value)}
-                        placeholder="Contado"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pur-lines-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Producto</th>
-                          <th>Cantidad</th>
-                          <th>Precio unit.</th>
-                          <th>Descuento %</th>
-                          <th>Subtotal</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {lines.map((line, i) => {
-                          const { net } = lineAmounts(line);
-                          return (
-                            <tr key={i}>
-                              <td>
-                                <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
-                                  <option value="">Seleccione</option>
-                                  {products.map((p) => (
-                                    <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td>
-                                <input
-                                  type="number" min="0.01" step="0.01"
-                                  value={line.quantity}
-                                  onChange={(e) => updateLine(i, 'quantity', e.target.value)}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number" min="0" step="0.01"
-                                  value={line.unitPrice}
-                                  onChange={(e) => updateLine(i, 'unitPrice', e.target.value)}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number" min="0" max="100" step="0.01"
-                                  value={line.discountPct}
-                                  onChange={(e) => updateLine(i, 'discountPct', e.target.value)}
-                                />
-                              </td>
-                              <td className="mono">{formatMoney(net)}</td>
-                              <td>
-                                {lines.length > 1 && (
-                                  <button type="button" className="pur-remove-line" onClick={() => removeLine(i)}>Quitar</button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <button type="button" className="pur-add-line" onClick={addLine}>+ Agregar línea</button>
-
-                  <div className="pur-totals-bar">
-                    <span>Subtotal <span className="pur-total-value">{formatMoney(orderTotals.subtotal)}</span></span>
-                    <span>Descuento <span className="pur-total-value">−{formatMoney(orderTotals.discount)}</span></span>
-                    <span>Total <span className="pur-total-value">{formatMoney(orderTotals.total)}</span></span>
-                  </div>
-
-                  {formError && <p className="form-error">{formError}</p>}
-
-                  <button type="submit" className="btn-primary">CREAR ORDEN</button>
-                </form>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn-primary" onClick={openOrderModal}>
+                    <PlusIcon />
+                    Crear orden
+                  </button>
+                </div>
               )}
 
               <div className="pur-filter-row">
@@ -232,7 +158,7 @@ export default function Purchases() {
                       <th>PLAZO</th>
                       <th>TOTAL</th>
                       <th>ESTADO</th>
-                      <th></th>
+                      <th className="pur-actions-header"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -249,15 +175,17 @@ export default function Purchases() {
                           </span>
                         </td>
                         <td className="pur-actions">
-                          {canApprove(order) && (
-                            <button type="button" className="pur-action-approve" onClick={() => handleApprove(order)}>Aprobar</button>
-                          )}
-                          {canReceive(order) && (
-                            <button type="button" className="pur-action-receive" onClick={() => openReceipt(order)}>Recibir</button>
-                          )}
-                          {canCancel(order) && (
-                            <button type="button" className="pur-action-cancel" onClick={() => handleCancel(order)}>Cancelar</button>
-                          )}
+                          <div className="pur-actions-inner">
+                            {canApprove(order) && (
+                              <button type="button" className="pur-action-approve" onClick={() => handleApprove(order)}>Aprobar</button>
+                            )}
+                            {canReceive(order) && (
+                              <button type="button" className="pur-action-receive" onClick={() => openReceipt(order)}>Recibir</button>
+                            )}
+                            {canCancel(order) && (
+                              <button type="button" className="pur-action-cancel" onClick={() => handleCancel(order)}>Cancelar</button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -347,6 +275,120 @@ export default function Purchases() {
             </>
           )}
         </>
+      )}
+
+      {isOrderModalOpen && (
+        <div className="modal-overlay" onClick={closeOrderModal}>
+          <div className="modal-panel modal-panel-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Nueva orden de compra</h2>
+              <button type="button" className="modal-close" onClick={closeOrderModal} aria-label="Cerrar">
+                <CloseIcon />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateOrder}>
+              <div className="modal-body">
+                <div className="form-grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
+                  <div className="field">
+                    <label htmlFor="po-supplier">Proveedor</label>
+                    <select id="po-supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} required>
+                      <option value="">Seleccione un proveedor</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="po-term">Plazo de pago (días)</label>
+                    <input
+                      id="po-term"
+                      type="number"
+                      min="0"
+                      value={paymentTermDays}
+                      onChange={(e) => setPaymentTermDays(e.target.value)}
+                      placeholder="Contado"
+                    />
+                  </div>
+                </div>
+
+                <div className="pur-lines-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Producto</th>
+                        <th>Cantidad</th>
+                        <th>Precio unit.</th>
+                        <th>Descuento %</th>
+                        <th>Subtotal</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((line, i) => {
+                        const { net } = lineAmounts(line);
+                        return (
+                          <tr key={i}>
+                            <td>
+                              <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
+                                <option value="">Seleccione</option>
+                                {products.map((p) => (
+                                  <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                type="number" min="0.01" step="0.01"
+                                value={line.quantity}
+                                onChange={(e) => updateLine(i, 'quantity', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number" min="0" step="0.01"
+                                value={line.unitPrice}
+                                onChange={(e) => updateLine(i, 'unitPrice', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number" min="0" max="100" step="0.01"
+                                value={line.discountPct}
+                                onChange={(e) => updateLine(i, 'discountPct', e.target.value)}
+                              />
+                            </td>
+                            <td className="mono">{formatMoney(net)}</td>
+                            <td>
+                              {lines.length > 1 && (
+                                <button type="button" className="pur-remove-line" onClick={() => removeLine(i)}>Quitar</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <button type="button" className="pur-add-line" onClick={addLine}>+ Agregar línea</button>
+
+                <div className="pur-totals-bar">
+                  <span>Subtotal <span className="pur-total-value">{formatMoney(orderTotals.subtotal)}</span></span>
+                  <span>Descuento <span className="pur-total-value">−{formatMoney(orderTotals.discount)}</span></span>
+                  <span>Total <span className="pur-total-value">{formatMoney(orderTotals.total)}</span></span>
+                </div>
+
+                {formError && <p className="form-error" style={{ marginBottom: 0 }}>{formError}</p>}
+              </div>
+
+              <div className="modal-footer">
+                <button type="submit" className="btn-primary">CREAR ORDEN</button>
+                <button type="button" className="btn-secondary" onClick={closeOrderModal}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </AppShell>
   );

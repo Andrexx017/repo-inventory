@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getUser } from '../../../shared/apiClient';
 import { getBranches } from '../../auth/api/branchesApi';
 import { getProducts } from '../../catalog/api/productsApi';
@@ -56,10 +57,19 @@ function todayInputValue() {
 export function useInventory() {
   const user = getUser();
   const isGeneralAdmin = user?.role === 'general_admin';
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [branches, setBranches] = useState([]);
   const [products, setProducts] = useState([]);
-  const [branchId, setBranchId] = useState(user?.branchId ? String(user.branchId) : '');
+  // Llegar acá desde el "Ir a Inventario" del Dashboard (alerta de reabastecimiento)
+  // trae la sucursal de la alerta en location.state — tiene prioridad sobre la
+  // sucursal propia del usuario, igual que el resto del formulario se preselecciona
+  // más abajo (ver el useEffect de location.state.productId).
+  const [branchId, setBranchId] = useState(() => {
+    if (location.state?.branchId) return String(location.state.branchId);
+    return user?.branchId ? String(user.branchId) : '';
+  });
 
   const [items, setItems] = useState([]);
   const [movements, setMovements] = useState([]);
@@ -79,6 +89,7 @@ export function useInventory() {
   const [movementDate, setMovementDate] = useState(todayInputValue());
   const [reason, setReason] = useState('');
   const [formError, setFormError] = useState('');
+  const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
 
   const [thresholdEditingItem, setThresholdEditingItem] = useState(null);
   const [thresholdMin, setThresholdMin] = useState('');
@@ -132,6 +143,18 @@ export function useInventory() {
     loadInventoryData();
   }, [branchId]);
 
+  // Preselecciona el producto de la alerta que trajo al usuario acá (ver
+  // goToInventoryForRestock en useDashboard.js) y limpia el state de navegación
+  // para que un refresh/volver atrás no vuelva a pisar el formulario.
+  useEffect(() => {
+    if (location.state?.productId) {
+      setProductId(String(location.state.productId));
+      setIsMovementModalOpen(true);
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function resetMovementForm() {
     setProductId('');
     setQuantity('');
@@ -145,6 +168,18 @@ export function useInventory() {
     setMovementType(nextDirection === 'ingreso' ? INCOMING_TYPES[0].value : OUTGOING_TYPES[0].value);
     setUnitCost('');
     setFormError('');
+  }
+
+  function openMovementModal() {
+    resetMovementForm();
+    setFormError('');
+    setIsMovementModalOpen(true);
+  }
+
+  function closeMovementModal() {
+    resetMovementForm();
+    setFormError('');
+    setIsMovementModalOpen(false);
   }
 
   async function handleSubmitMovement(e) {
@@ -172,7 +207,7 @@ export function useInventory() {
         await registerOutgoing(branchId, dto);
       }
 
-      resetMovementForm();
+      closeMovementModal();
       await loadInventoryData();
     } catch (err) {
       setFormError(err.message || 'No se pudo registrar el movimiento.');
@@ -261,6 +296,9 @@ export function useInventory() {
     setReason,
     formError,
     handleSubmitMovement,
+    isMovementModalOpen,
+    openMovementModal,
+    closeMovementModal,
 
     thresholdEditingItem,
     thresholdMin,

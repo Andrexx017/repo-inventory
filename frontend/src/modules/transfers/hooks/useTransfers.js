@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getUser } from '../../../shared/apiClient';
 import { getBranches } from '../../auth/api/branchesApi';
 import { getProducts } from '../../catalog/api/productsApi';
@@ -50,6 +51,8 @@ function emptyLine() {
 
 export function useTransfers() {
   const user = getUser();
+  const location = useLocation();
+  const navigate = useNavigate();
   const isGeneralAdmin = user?.role === 'general_admin';
   const isInventoryOperator = user?.role === 'inventory_operator';
   const isBranchManager = user?.role === 'branch_manager';
@@ -76,6 +79,7 @@ export function useTransfers() {
   const [lines, setLines] = useState([emptyLine()]);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
   const [viewTransfer, setViewTransfer] = useState(null);
 
@@ -137,6 +141,19 @@ export function useTransfers() {
     loadTransfers();
   }, [branchId]);
 
+  // Llegar acá desde una notificación de la campana (transferencia en
+  // tránsito) trae el id en location.state — igual patrón que
+  // useInventory.js con location.state.productId desde el Dashboard. Se
+  // limpia el state de navegación para que un refresh no reabra el modal.
+  useEffect(() => {
+    if (location.state?.openTransferId && transfers.length > 0) {
+      const target = transfers.find((t) => t.id === location.state.openTransferId);
+      if (target) setViewTransfer(target);
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transfers]);
+
   const visibleTransfers = transfers.filter((t) => {
     const statuses = TAB_STATUSES[tab];
     return !statuses || statuses.includes(t.status);
@@ -146,6 +163,20 @@ export function useTransfers() {
     setOriginBranchId('');
     setUrgency('medium');
     setLines([emptyLine()]);
+  }
+
+  function openRequestModal() {
+    resetTransferForm();
+    setFormError('');
+    setFormSuccess('');
+    setIsRequestModalOpen(true);
+  }
+
+  function closeRequestModal() {
+    resetTransferForm();
+    setFormError('');
+    setFormSuccess('');
+    setIsRequestModalOpen(false);
   }
 
   function addLine() {
@@ -387,6 +418,9 @@ export function useTransfers() {
     formError,
     formSuccess,
     handleCreateTransfer,
+    isRequestModalOpen,
+    openRequestModal,
+    closeRequestModal,
 
     viewTransfer,
     openView,

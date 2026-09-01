@@ -20,6 +20,22 @@ const ALERT_TYPE_LABELS = { low_stock: 'Stock bajo', high_stock: 'Stock alto' };
 const ALERT_STATUS_LABELS = { pending: 'PENDIENTE', resolved: 'RESUELTA' };
 const ALERT_STATUS_CLASSES = { pending: 'status-pill-warn', resolved: 'status-pill-active' };
 
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 function formatMoney(value) {
   if (value === null || value === undefined) return '—';
   return `$${Number(value).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
@@ -48,6 +64,7 @@ export default function Inventory() {
     movementDate, setMovementDate,
     reason, setReason,
     formError, handleSubmitMovement,
+    isMovementModalOpen, openMovementModal, closeMovementModal,
     thresholdEditingItem, thresholdMin, setThresholdMin, thresholdMax, setThresholdMax,
     thresholdError, handleEditThreshold, cancelThresholdEdit, handleSubmitThreshold,
     alertError, resolvingAlertId, handleResolveAlert,
@@ -154,105 +171,12 @@ export default function Inventory() {
           {tab === 'existencias' && (
             <>
               {canMutate ? (
-                <form onSubmit={handleSubmitMovement} className="form-card">
-                  <div className="inv-movement-header">
-                    <h2>Registrar movimiento</h2>
-                    <div className="inv-dir-toggle">
-                      <button
-                        type="button"
-                        className={`inv-dir-btn ${direction === 'ingreso' ? 'inv-dir-btn-in-active' : ''}`}
-                        onClick={() => handleDirectionChange('ingreso')}
-                      >
-                        ↓ Ingreso
-                      </button>
-                      <button
-                        type="button"
-                        className={`inv-dir-btn ${direction === 'retiro' ? 'inv-dir-btn-out-active' : ''}`}
-                        onClick={() => handleDirectionChange('retiro')}
-                      >
-                        ↑ Retiro
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="inv-movement-grid">
-                    <div className="field">
-                      <label htmlFor="mv-product">Producto</label>
-                      <select id="mv-product" value={productId} onChange={(e) => setProductId(e.target.value)} required>
-                        <option value="">Seleccione un producto</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="field">
-                      <label htmlFor="mv-type">Motivo</label>
-                      <select id="mv-type" value={movementType} onChange={(e) => setMovementType(e.target.value)} required>
-                        {movementTypeOptions.map((t) => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="field">
-                      <label htmlFor="mv-quantity">Cantidad</label>
-                      <input
-                        id="mv-quantity"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={quantity}
-                        onChange={(e) => setQuantity(e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    {direction === 'ingreso' ? (
-                      <div className="field">
-                        <label htmlFor="mv-cost">Costo unitario</label>
-                        <input
-                          id="mv-cost"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={unitCost}
-                          onChange={(e) => setUnitCost(e.target.value)}
-                        />
-                      </div>
-                    ) : (
-                      <div className="field">
-                        <label>Costo unitario</label>
-                        <input value="No aplica" disabled />
-                      </div>
-                    )}
-
-                    <div className="field">
-                      <label htmlFor="mv-date">Fecha</label>
-                      <input
-                        id="mv-date"
-                        type="date"
-                        value={movementDate}
-                        onChange={(e) => setMovementDate(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="field" style={{ marginBottom: '16px' }}>
-                    <label htmlFor="mv-reason">Nota</label>
-                    <input id="mv-reason" value={reason} onChange={(e) => setReason(e.target.value)} required />
-                  </div>
-
-                  {formError && <p className="form-error">{formError}</p>}
-
-                  <button
-                    type="submit"
-                    className={`btn-primary ${direction === 'ingreso' ? 'inv-btn-in' : 'inv-btn-out'}`}
-                  >
-                    {direction === 'ingreso' ? 'REGISTRAR INGRESO' : 'REGISTRAR RETIRO'}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn-primary" onClick={openMovementModal}>
+                    <PlusIcon />
+                    Registrar movimiento
                   </button>
-                </form>
+                </div>
               ) : (
                 <p className="inv-readonly-note">
                   Estás viendo el inventario de otra sucursal en modo solo lectura. Para registrar movimientos, cambiá a tu propia sucursal.
@@ -453,6 +377,122 @@ export default function Inventory() {
             </>
           )}
         </>
+      )}
+
+      {isMovementModalOpen && (
+        <div className="modal-overlay" onClick={closeMovementModal}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="inv-movement-header" style={{ marginBottom: 0 }}>
+                <h2 className="modal-title">Registrar movimiento</h2>
+                <div className="inv-dir-toggle">
+                  <button
+                    type="button"
+                    className={`inv-dir-btn ${direction === 'ingreso' ? 'inv-dir-btn-in-active' : ''}`}
+                    onClick={() => handleDirectionChange('ingreso')}
+                  >
+                    ↓ Ingreso
+                  </button>
+                  <button
+                    type="button"
+                    className={`inv-dir-btn ${direction === 'retiro' ? 'inv-dir-btn-out-active' : ''}`}
+                    onClick={() => handleDirectionChange('retiro')}
+                  >
+                    ↑ Retiro
+                  </button>
+                </div>
+              </div>
+              <button type="button" className="modal-close" onClick={closeMovementModal} aria-label="Cerrar">
+                <CloseIcon />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitMovement}>
+              <div className="modal-body">
+                <div className="inv-movement-grid">
+                  <div className="field">
+                    <label htmlFor="mv-product">Producto</label>
+                    <select id="mv-product" value={productId} onChange={(e) => setProductId(e.target.value)} required>
+                      <option value="">Seleccione un producto</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="mv-type">Motivo</label>
+                    <select id="mv-type" value={movementType} onChange={(e) => setMovementType(e.target.value)} required>
+                      {movementTypeOptions.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="mv-quantity">Cantidad</label>
+                    <input
+                      id="mv-quantity"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  {direction === 'ingreso' ? (
+                    <div className="field">
+                      <label htmlFor="mv-cost">Costo unitario</label>
+                      <input
+                        id="mv-cost"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={unitCost}
+                        onChange={(e) => setUnitCost(e.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="field">
+                      <label>Costo unitario</label>
+                      <input value="No aplica" disabled />
+                    </div>
+                  )}
+
+                  <div className="field">
+                    <label htmlFor="mv-date">Fecha</label>
+                    <input
+                      id="mv-date"
+                      type="date"
+                      value={movementDate}
+                      onChange={(e) => setMovementDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="mv-reason">Nota</label>
+                  <input id="mv-reason" value={reason} onChange={(e) => setReason(e.target.value)} required />
+                </div>
+
+                {formError && <p className="form-error" style={{ marginBottom: 0, marginTop: '14px' }}>{formError}</p>}
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="submit"
+                  className={`btn-primary ${direction === 'ingreso' ? 'inv-btn-in' : 'inv-btn-out'}`}
+                >
+                  {direction === 'ingreso' ? 'REGISTRAR INGRESO' : 'REGISTRAR RETIRO'}
+                </button>
+                <button type="button" className="btn-secondary" onClick={closeMovementModal}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </AppShell>
   );

@@ -292,3 +292,33 @@
 .trf-step-line-done {
     background: var(--success);
 }
+
+@media (max-width: 900px) {
+    .trf-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .trf-lines-table {
+        overflow-x: auto;
+    }
+
+    .trf-lines-table table {
+        min-width: 640px;
+    }
+
+    .trf-logistics-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .trf-stepper {
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+}
+
+@media (max-width: 560px) {
+    .trf-kpi-grid,
+    .trf-logistics-grid {
+        grid-template-columns: 1fr;
+    }
+}

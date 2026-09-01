@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { getUser, logout } from '../apiClient';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
+import TopSearch from './TopSearch';
+import NotificationBell from './NotificationBell';
 import './AppShell.css';
 
 const ROLE_LABELS = {
@@ -25,7 +28,7 @@ function navLinkClass({ isActive }) {
 }
 
 // Shell persistente (barra lateral + topbar) que envuelve toda pantalla ya
-// autenticada — Home, Catálogo, Sucursales, Roles, Usuarios. Antes vivía
+// autenticada — Home, Catálogo, Sucursales, Usuarios. Antes vivía
 // duplicado dentro de Home.jsx; se extrajo acá para no repetirlo por pantalla,
 // mismo motivo por el que el mockup usaba Sidebar.dc.html/Topbar.dc.html como
 // componentes compartidos (ver RUTA.md).
@@ -33,6 +36,7 @@ export default function AppShell({ title, children }) {
     const navigate = useNavigate();
     const user = getUser();
     const { theme, toggleTheme } = useTheme();
+    const [navOpen, setNavOpen] = useState(false);
 
     const handleLogout = () => {
         logout();
@@ -44,7 +48,11 @@ export default function AppShell({ title, children }) {
     return (
         <div className="app-shell">
 
-            <aside className="sidebar">
+            {navOpen && (
+                <div className="sidebar-backdrop-open" onClick={() => setNavOpen(false)} />
+            )}
+
+            <aside className={navOpen ? 'sidebar sidebar-open' : 'sidebar'}>
                 <div className="sidebar-brand">
                     <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M12 2 3 7v10l9 5 9-5V7z" />
@@ -52,9 +60,20 @@ export default function AppShell({ title, children }) {
                         <path d="M12 12v10" />
                     </svg>
                     <span className="sidebar-brand-name">INVENTARIO</span>
+
+                    <button
+                        type="button"
+                        className="sidebar-close"
+                        onClick={() => setNavOpen(false)}
+                        aria-label="Cerrar menú"
+                    >
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 6l12 12M18 6L6 18" />
+                        </svg>
+                    </button>
                 </div>
 
-                <nav className="sidebar-nav">
+                <nav className="sidebar-nav" onClick={() => setNavOpen(false)}>
                     <NavLink to="/" end className={navLinkClass}>
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M3 10.5 12 3l9 7.5" />
@@ -114,16 +133,12 @@ export default function AppShell({ title, children }) {
                         Reportes
                     </NavLink>
 
-                    {/* Logística no tiene pantalla propia — sus campos (transportista,
-                        fechas, retraso) viven dentro de Transferencias (ver detalle de
-                        cada transferencia), no como módulo separado. */}
-                    <span className="sidebar-link sidebar-link-disabled">
+                    <NavLink to="/dashboard" className={navLinkClass}>
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="6" cy="19" r="2" /><circle cx="18" cy="5" r="2" />
-                            <path d="M8 19h7a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H9a4 4 0 0 1-4-4V5" />
+                            <path d="M4 20V10" /><path d="M12 20V4" /><path d="M20 20v-7" />
                         </svg>
-                        Logística
-                    </span>
+                        Dashboard
+                    </NavLink>
 
                     {isGeneralAdmin && (
                         <>
@@ -136,16 +151,6 @@ export default function AppShell({ title, children }) {
                                     <path d="M4 9h16" />
                                 </svg>
                                 Sucursales
-                            </NavLink>
-
-                            <NavLink to="/roles" className={navLinkClass}>
-                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="9" cy="8" r="3.2" />
-                                    <path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
-                                    <circle cx="17" cy="9" r="2.4" />
-                                    <path d="M15.5 14.2c2.6.3 4.5 2.3 4.5 5.3" />
-                                </svg>
-                                Roles
                             </NavLink>
 
                             <NavLink to="/users" className={navLinkClass}>
@@ -187,26 +192,29 @@ export default function AppShell({ title, children }) {
             <div className="app-main">
 
                 <header className="app-topbar">
+                    <button
+                        type="button"
+                        className="sidebar-toggle"
+                        onClick={() => setNavOpen((open) => !open)}
+                        aria-label="Abrir menú"
+                    >
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18M3 12h18M3 18h18" />
+                        </svg>
+                    </button>
+
                     <span className="app-page-title">{title}</span>
                     <div className="app-topbar-spacer" />
+
+                    <TopSearch />
+
+                    <div className="app-topbar-divider" />
 
                     <ThemeToggle theme={theme} onToggle={toggleTheme} />
 
                     <div className="app-topbar-divider" />
 
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="app-icon-muted">
-                        <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
-                    </svg>
-
-                    <div className="app-topbar-divider" />
-
-                    <div className="app-bell">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="app-icon-muted">
-                            <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />
-                            <path d="M10 20a2 2 0 0 0 4 0" />
-                        </svg>
-                        <span className="app-bell-badge">4</span>
-                    </div>
+                    <NotificationBell />
                 </header>
 
                 <main className="app-content">

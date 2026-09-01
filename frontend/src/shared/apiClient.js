@@ -106,6 +106,14 @@ export async function putJson(path, body) {
 }
 
 
+// DELETE
+export async function deleteJson(path) {
+    return request(path, {
+        method: 'DELETE'
+    });
+}
+
+
 // GET binario (PDF/Excel u otro archivo) — devuelve un Blob en vez de JSON.
 export async function getBlob(path) {
     return request(path, {

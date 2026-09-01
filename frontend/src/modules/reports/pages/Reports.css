@@ -51,3 +51,22 @@
 .rep-grid {
     grid-template-columns: repeat(2, 1fr);
 }
+
+@media (max-width: 900px) {
+    .rep-topline {
+        flex-direction: column;
+    }
+
+    .rep-branch-picker {
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .rep-branch-row select {
+        width: 100%;
+    }
+
+    .rep-grid {
+        grid-template-columns: 1fr;
+    }
+}

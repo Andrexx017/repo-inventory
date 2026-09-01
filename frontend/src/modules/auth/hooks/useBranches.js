@@ -13,6 +13,8 @@ export function useBranches() {
   const [phone, setPhone] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [formError, setFormError] = useState('');
+  const [search, setSearch] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   async function load() {
     try {
@@ -39,6 +41,18 @@ export function useBranches() {
     setEditingId(null);
   }
 
+  function openCreateModal() {
+    resetForm();
+    setFormError('');
+    setIsModalOpen(true);
+  }
+
+  function closeModal() {
+    resetForm();
+    setFormError('');
+    setIsModalOpen(false);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
@@ -50,7 +64,7 @@ export function useBranches() {
         await updateBranch(editingId, { name, address, city, phone, active });
       }
 
-      resetForm();
+      closeModal();
       await load();
     } catch (err) {
       setFormError(err.message || 'No se pudo guardar la sucursal.');
@@ -65,12 +79,25 @@ export function useBranches() {
     setPhone(branch.phone || '');
     setActive(branch.active);
     setEditingId(branch.id);
+    setFormError('');
+    setIsModalOpen(true);
   }
 
+  const term = search.trim().toLowerCase();
+  const filteredBranches = term
+    ? branches.filter((b) =>
+        b.code.toLowerCase().includes(term) ||
+        b.name.toLowerCase().includes(term) ||
+        (b.city || '').toLowerCase().includes(term))
+    : branches;
+
   return {
-    branches,
+    branches: filteredBranches,
+    totalCount: branches.length,
     loading,
     error,
+    search,
+    setSearch,
     code,
     setCode,
     name,
@@ -85,6 +112,9 @@ export function useBranches() {
     setPhone,
     editingId,
     formError,
+    isModalOpen,
+    openCreateModal,
+    closeModal,
     handleSubmit,
     handleEdit,
     resetForm,

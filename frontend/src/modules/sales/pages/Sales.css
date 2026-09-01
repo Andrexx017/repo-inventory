@@ -88,11 +88,18 @@
     font-weight: 500;
     padding: 10px 12px;
     border-bottom: 1px solid var(--border);
+    white-space: nowrap;
 }
 
 .sal-lines-table td {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
+}
+
+.sal-lines-table th:last-child,
+.sal-lines-table td:last-child {
+    padding-left: 20px;
+    text-align: right;
 }
 
 .sal-lines-table tr:last-child td {
@@ -168,4 +175,24 @@
 .sal-totals-bar .sal-total-value {
     font-family: var(--font-mono);
     color: var(--text);
+}
+
+@media (max-width: 900px) {
+    .sal-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sal-lines-table {
+        overflow-x: auto;
+    }
+
+    .sal-lines-table table {
+        min-width: 640px;
+    }
+}
+
+@media (max-width: 560px) {
+    .sal-kpi-grid {
+        grid-template-columns: 1fr;
+    }
 }

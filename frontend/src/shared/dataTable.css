@@ -193,6 +193,9 @@
 }
 
 .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     padding: 10px 18px;
     border: none;
     border-radius: 6px;
@@ -209,6 +212,9 @@
 }
 
 .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     padding: 10px 18px;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -218,4 +224,119 @@
     font-size: 13px;
     cursor: pointer;
     margin-left: 8px;
+}
+
+/* Encabezado de página con acciones (ej. Catálogo: "Nuevo producto" / "Nueva
+   unidad de medida") */
+
+.action-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.btn-group {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-group .btn-secondary {
+    margin-left: 0;
+}
+
+/* Modales (ej. alta/edición de producto y de unidad de medida en Catálogo) */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 5, 7, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+}
+
+.modal-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    width: 620px;
+    max-width: calc(100vw - 48px);
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+.modal-panel-sm {
+    width: 420px;
+}
+
+/* Modales con tabla de líneas editable (orden de compra, venta, transferencia)
+   — a 620px la última columna (acción "Quitar") queda apretada contra el
+   borde del modal, sin aire respecto al Subtotal. */
+.modal-panel-lg {
+    width: 760px;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    padding: 4px;
+}
+
+.modal-close:hover {
+    color: var(--danger);
+}
+
+.modal-body {
+    padding: 22px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px 22px;
+    border-top: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+    .table-card {
+        overflow-x: auto;
+    }
+
+    .data-table {
+        min-width: 640px;
+    }
+
+    .action-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .btn-group {
+        width: 100%;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr !important;
+    }
 }

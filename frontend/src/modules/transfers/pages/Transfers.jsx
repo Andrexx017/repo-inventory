@@ -10,6 +10,22 @@ import {
 } from '../hooks/useTransfers';
 import './Transfers.css';
 
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 function formatDate(value) {
   if (!value) return '—';
   return new Date(value).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -101,6 +117,7 @@ export default function Transfers() {
     originBranchId, setOriginBranchId, urgency, setUrgency,
     lines, addLine, removeLine, updateLine,
     formError, formSuccess, handleCreateTransfer,
+    isRequestModalOpen, openRequestModal, closeRequestModal,
     viewTransfer, openView, closeView,
     prepareTarget, prepareQuantities, setPrepareQuantity, prepareNotes, setPrepareNotes, prepareError,
     openPrepare, closePrepare, handleSubmitPrepare,
@@ -186,77 +203,12 @@ export default function Transfers() {
           </div>
 
           {canRequestTransfer && (
-            <form onSubmit={handleCreateTransfer} className="form-card">
-              <h2>Solicitar transferencia</h2>
-
-              <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                <div className="field">
-                  <label htmlFor="trf-origin">Sucursal origen</label>
-                  <select id="trf-origin" value={originBranchId} onChange={(e) => setOriginBranchId(e.target.value)}>
-                    <option value="">Seleccione una sucursal</option>
-                    {branches.filter((b) => String(b.id) !== String(branchId)).map((b) => (
-                      <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor="trf-urgency">Urgencia</label>
-                  <select id="trf-urgency" value={urgency} onChange={(e) => setUrgency(e.target.value)}>
-                    <option value="low">Baja</option>
-                    <option value="medium">Media</option>
-                    <option value="high">Alta</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="trf-lines-table">
-                <table>
-                  <thead>
-                    <tr><th>Producto</th><th>Cantidad solicitada</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                    {lines.map((line, i) => (
-                      <tr key={i}>
-                        <td>
-                          <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
-                            <option value="">Seleccione</option>
-                            {products.map((p) => (
-                              <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            type="number" min="0.01" step="0.01"
-                            value={line.requestedQuantity}
-                            onChange={(e) => updateLine(i, 'requestedQuantity', e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          {lines.length > 1 && (
-                            <button type="button" className="trf-remove-line" onClick={() => removeLine(i)}>Quitar</button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <p className="trf-form-note">
-                La sucursal destino es la tuya — se toma de tu sesión, no se elige acá. La sucursal origen revisará
-                disponibilidad y confirmará cuánto puede despachar de cada línea.
-              </p>
-
-              <button type="button" className="trf-add-line" onClick={addLine}>+ Agregar línea</button>
-
-              {formError && <p className="form-error">{formError}</p>}
-              {formSuccess && <p className="trf-form-success">{formSuccess}</p>}
-
-              <div>
-                <button type="submit" className="btn-primary">SOLICITAR TRANSFERENCIA</button>
-              </div>
-            </form>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn-primary" onClick={openRequestModal}>
+                <PlusIcon />
+                Solicitar transferencia
+              </button>
+            </div>
           )}
 
           <div className="table-card">
@@ -494,6 +446,92 @@ export default function Transfers() {
             </form>
           )}
         </>
+      )}
+
+      {isRequestModalOpen && (
+        <div className="modal-overlay" onClick={closeRequestModal}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Solicitar transferencia</h2>
+              <button type="button" className="modal-close" onClick={closeRequestModal} aria-label="Cerrar">
+                <CloseIcon />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTransfer}>
+              <div className="modal-body">
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="field">
+                    <label htmlFor="trf-origin">Sucursal origen</label>
+                    <select id="trf-origin" value={originBranchId} onChange={(e) => setOriginBranchId(e.target.value)}>
+                      <option value="">Seleccione una sucursal</option>
+                      {branches.filter((b) => String(b.id) !== String(branchId)).map((b) => (
+                        <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="trf-urgency">Urgencia</label>
+                    <select id="trf-urgency" value={urgency} onChange={(e) => setUrgency(e.target.value)}>
+                      <option value="low">Baja</option>
+                      <option value="medium">Media</option>
+                      <option value="high">Alta</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="trf-lines-table">
+                  <table>
+                    <thead>
+                      <tr><th>Producto</th><th>Cantidad solicitada</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((line, i) => (
+                        <tr key={i}>
+                          <td>
+                            <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
+                              <option value="">Seleccione</option>
+                              {products.map((p) => (
+                                <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="number" min="0.01" step="0.01"
+                              value={line.requestedQuantity}
+                              onChange={(e) => updateLine(i, 'requestedQuantity', e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            {lines.length > 1 && (
+                              <button type="button" className="trf-remove-line" onClick={() => removeLine(i)}>Quitar</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <p className="trf-form-note">
+                  La sucursal destino es la tuya — se toma de tu sesión, no se elige acá. La sucursal origen revisará
+                  disponibilidad y confirmará cuánto puede despachar de cada línea.
+                </p>
+
+                <button type="button" className="trf-add-line" onClick={addLine}>+ Agregar línea</button>
+
+                {formError && <p className="form-error" style={{ marginBottom: 0 }}>{formError}</p>}
+                {formSuccess && <p className="trf-form-success" style={{ marginBottom: 0 }}>{formSuccess}</p>}
+              </div>
+
+              <div className="modal-footer">
+                <button type="submit" className="btn-primary">SOLICITAR TRANSFERENCIA</button>
+                <button type="button" className="btn-secondary" onClick={closeRequestModal}>Cerrar</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </AppShell>
   );

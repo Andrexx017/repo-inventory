@@ -31,4 +31,29 @@ public class PriceListsController : ControllerBase
         var priceList = await _priceListService.GetByIdAsync(id);
         return priceList is null ? NotFound() : Ok(priceList);
     }
+
+    // Todo el catálogo con su precio en esta lista (null = todavía sin
+    // precio) — es lo que alimenta el modal de edición en el frontend.
+    [HttpGet("{id:long}/items")]
+    public async Task<ActionResult<IReadOnlyList<PriceListItemDto>>> GetItems(long id) =>
+        Ok(await _priceListService.GetItemsAsync(id));
+
+    // Cargar/editar precios es una decisión comercial — mismo criterio que
+    // ProductsController: solo el Admin general puede escribir, el resto solo
+    // lee (para el <select> de la venta y, ahora, para ver el modal).
+    [HttpPut("{id:long}/items/{productId:long}")]
+    [Authorize(Roles = RoleCodes.GeneralAdmin)]
+    public async Task<IActionResult> SetItemPrice(long id, long productId, SetPriceListItemDto request)
+    {
+        await _priceListService.SetItemPriceAsync(id, productId, request.Price);
+        return NoContent();
+    }
+
+    [HttpDelete("{id:long}/items/{productId:long}")]
+    [Authorize(Roles = RoleCodes.GeneralAdmin)]
+    public async Task<IActionResult> RemoveItem(long id, long productId)
+    {
+        var removed = await _priceListService.RemoveItemAsync(id, productId);
+        return removed ? NoContent() : NotFound();
+    }
 }

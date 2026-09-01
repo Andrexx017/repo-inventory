@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getUser } from '../../../shared/apiClient';
 import { getBranches } from '../../auth/api/branchesApi';
 import { getProducts } from '../../catalog/api/productsApi';
-import { getPriceLists } from '../api/priceListsApi';
+import { getPriceLists, getPriceListItems, setPriceListItemPrice, removePriceListItem } from '../api/priceListsApi';
 import { getSales, createSale } from '../api/salesApi';
 
 function emptyLine() {
@@ -34,8 +34,16 @@ export function useSales() {
   const [lines, setLines] = useState([emptyLine()]);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
 
   const [viewSale, setViewSale] = useState(null);
+
+  const [editingPriceList, setEditingPriceList] = useState(null);
+  const [priceListItems, setPriceListItems] = useState([]);
+  const [priceListItemsLoading, setPriceListItemsLoading] = useState(false);
+  const [priceListItemsError, setPriceListItemsError] = useState('');
+  const [priceListItemSearch, setPriceListItemSearch] = useState('');
+  const [savingProductId, setSavingProductId] = useState(null);
 
   async function loadReferenceData() {
     try {
@@ -84,6 +92,20 @@ export function useSales() {
     setPriceListId('');
     setCustomerName('');
     setLines([emptyLine()]);
+  }
+
+  function openSaleModal() {
+    resetSaleForm();
+    setFormError('');
+    setFormSuccess('');
+    setIsSaleModalOpen(true);
+  }
+
+  function closeSaleModal() {
+    resetSaleForm();
+    setFormError('');
+    setFormSuccess('');
+    setIsSaleModalOpen(false);
   }
 
   function addLine() {
@@ -139,6 +161,78 @@ export function useSales() {
     setViewSale(null);
   }
 
+  async function openPriceListEditor(priceList) {
+    setEditingPriceList(priceList);
+    setPriceListItemSearch('');
+    setPriceListItemsError('');
+    setPriceListItemsLoading(true);
+    try {
+      const items = await getPriceListItems(priceList.id);
+      setPriceListItems(items);
+    } catch (err) {
+      setPriceListItemsError(err.message || 'No se pudieron cargar los productos de la lista.');
+    } finally {
+      setPriceListItemsLoading(false);
+    }
+  }
+
+  function closePriceListEditor() {
+    setEditingPriceList(null);
+    setPriceListItems([]);
+  }
+
+  // Cambio local inmediato (sin guardar todavía) para que el input responda
+  // al tipeo — el guardado real es explícito por fila (handleSavePrice),
+  // mismo criterio que los formularios de umbral en Inventario.
+  function updatePriceListItemDraft(productId, price) {
+    setPriceListItems((prev) => prev.map((item) => (
+      item.productId === productId ? { ...item, price } : item
+    )));
+  }
+
+  async function handleSavePrice(productId, price) {
+    if (price === '' || price === null || Number(price) < 0) {
+      setPriceListItemsError('Ingresá un precio válido (mayor o igual a cero).');
+      return;
+    }
+
+    setPriceListItemsError('');
+    setSavingProductId(productId);
+    try {
+      await setPriceListItemPrice(editingPriceList.id, productId, Number(price));
+      setPriceListItems((prev) => prev.map((item) => (
+        item.productId === productId ? { ...item, price: Number(price) } : item
+      )));
+    } catch (err) {
+      setPriceListItemsError(err.message || 'No se pudo guardar el precio.');
+    } finally {
+      setSavingProductId(null);
+    }
+  }
+
+  async function handleRemovePrice(productId) {
+    setPriceListItemsError('');
+    setSavingProductId(productId);
+    try {
+      await removePriceListItem(editingPriceList.id, productId);
+      setPriceListItems((prev) => prev.map((item) => (
+        item.productId === productId ? { ...item, price: null } : item
+      )));
+    } catch (err) {
+      setPriceListItemsError(err.message || 'No se pudo quitar el precio.');
+    } finally {
+      setSavingProductId(null);
+    }
+  }
+
+  const visiblePriceListItems = priceListItemSearch
+    ? priceListItems.filter((item) => {
+        const term = priceListItemSearch.trim().toLowerCase();
+        return item.productName.toLowerCase().includes(term)
+          || item.productSku.toLowerCase().includes(term);
+      })
+    : priceListItems;
+
   return {
     branches,
     branchId,
@@ -165,9 +259,25 @@ export function useSales() {
     formError,
     formSuccess,
     handleCreateSale,
+    isSaleModalOpen,
+    openSaleModal,
+    closeSaleModal,
 
     viewSale,
     openComprobante,
     closeComprobante,
+
+    editingPriceList,
+    priceListItems: visiblePriceListItems,
+    priceListItemsLoading,
+    priceListItemsError,
+    priceListItemSearch,
+    setPriceListItemSearch,
+    savingProductId,
+    openPriceListEditor,
+    closePriceListEditor,
+    updatePriceListItemDraft,
+    handleSavePrice,
+    handleRemovePrice,
   };
 }

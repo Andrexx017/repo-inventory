@@ -91,11 +91,18 @@
     font-weight: 500;
     padding: 10px 12px;
     border-bottom: 1px solid var(--border);
+    white-space: nowrap;
 }
 
 .pur-lines-table td {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
+}
+
+.pur-lines-table th:last-child,
+.pur-lines-table td:last-child {
+    padding-left: 20px;
+    text-align: right;
 }
 
 .pur-lines-table tr:last-child td {
@@ -172,9 +179,24 @@
     font-size: 13.5px;
 }
 
+/* Ancho fijo para que la columna de acciones no cambie de tamaño según qué
+   fila tenga botones (Aprobar/Recibir/Cancelar) — sin esto, una fila sin
+   acciones (ej. COMPLETA) deja una celda angosta y desconectada del resto. */
+.pur-actions-header,
 .pur-actions {
+    width: 190px;
+}
+
+/* display:flex va en un <div> DENTRO del <td>, nunca en el <td> mismo — un
+   <td> con display:flex deja de comportarse como celda de tabla y ya no se
+   estira a la altura de la fila, así que su borde inferior queda más arriba
+   que el resto de la fila (más notorio cuanto más vacía está la celda). */
+.pur-actions-inner {
     white-space: nowrap;
     display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    height: 100%;
     gap: 12px;
 }
 
@@ -206,4 +228,32 @@
     border: none;
     cursor: pointer;
     padding: 0;
+}
+
+@media (max-width: 900px) {
+    .pur-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .pur-filter-row {
+        flex-wrap: wrap;
+    }
+
+    .pur-filter-row select {
+        width: 100%;
+    }
+
+    .pur-lines-table {
+        overflow-x: auto;
+    }
+
+    .pur-lines-table table {
+        min-width: 640px;
+    }
+}
+
+@media (max-width: 560px) {
+    .pur-kpi-grid {
+        grid-template-columns: 1fr;
+    }
 }

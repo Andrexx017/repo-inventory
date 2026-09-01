@@ -2,6 +2,22 @@ import AppShell from '../../../shared/components/AppShell';
 import { useSales } from '../hooks/useSales';
 import './Sales.css';
 
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
 function formatMoney(value) {
   if (value === null || value === undefined) return '—';
   return `$${Number(value).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
@@ -27,7 +43,12 @@ export default function Sales() {
     priceListId, setPriceListId, customerName, setCustomerName,
     lines, addLine, removeLine, updateLine,
     formError, formSuccess, handleCreateSale,
+    isSaleModalOpen, openSaleModal, closeSaleModal,
     viewSale, openComprobante, closeComprobante,
+    editingPriceList, priceListItems, priceListItemsLoading, priceListItemsError,
+    priceListItemSearch, setPriceListItemSearch, savingProductId,
+    openPriceListEditor, closePriceListEditor, updatePriceListItemDraft,
+    handleSavePrice, handleRemovePrice,
   } = useSales();
 
   const now = new Date();
@@ -115,90 +136,12 @@ export default function Sales() {
           {tab === 'ventas' && (
             <>
               {canCreateSale && (
-                <form onSubmit={handleCreateSale} className="form-card">
-                  <h2>Registrar venta</h2>
-
-                  <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                    <div className="field">
-                      <label htmlFor="sale-pricelist">Lista de precio</label>
-                      <select id="sale-pricelist" value={priceListId} onChange={(e) => setPriceListId(e.target.value)}>
-                        <option value="">Sin lista (precio de referencia)</option>
-                        {priceLists.map((pl) => (
-                          <option key={pl.id} value={pl.id}>{pl.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="field">
-                      <label htmlFor="sale-customer">Cliente (opcional)</label>
-                      <input
-                        id="sale-customer"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Consumidor final"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="sal-lines-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Producto</th>
-                          <th>Cantidad</th>
-                          <th>Descuento %</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {lines.map((line, i) => (
-                          <tr key={i}>
-                            <td>
-                              <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
-                                <option value="">Seleccione</option>
-                                {products.map((p) => (
-                                  <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td>
-                              <input
-                                type="number" min="0.01" step="0.01"
-                                value={line.quantity}
-                                onChange={(e) => updateLine(i, 'quantity', e.target.value)}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number" min="0" max="100" step="0.01"
-                                value={line.discountPct}
-                                onChange={(e) => updateLine(i, 'discountPct', e.target.value)}
-                              />
-                            </td>
-                            <td>
-                              {lines.length > 1 && (
-                                <button type="button" className="sal-remove-line" onClick={() => removeLine(i)}>Quitar</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <p className="sal-form-note">
-                    El precio no se escribe a mano: lo resuelve el servidor según la lista elegida (o el precio de
-                    referencia del producto) al confirmar la venta.
-                  </p>
-
-                  <button type="button" className="sal-add-line" onClick={addLine}>+ Agregar línea</button>
-
-                  {formError && <p className="form-error">{formError}</p>}
-                  {formSuccess && <p className="sal-form-success">{formSuccess}</p>}
-
-                  <div>
-                    <button type="submit" className="btn-primary">REGISTRAR VENTA</button>
-                  </div>
-                </form>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn-primary" onClick={openSaleModal}>
+                    <PlusIcon />
+                    Registrar venta
+                  </button>
+                </div>
               )}
 
               <div className="table-card">
@@ -290,6 +233,7 @@ export default function Sales() {
                       <th>DESCRIPCIÓN</th>
                       <th>VIGENCIA</th>
                       <th>ESTADO</th>
+                      {isGeneralAdmin && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -307,18 +251,228 @@ export default function Sales() {
                             {isVigente(pl) ? 'VIGENTE' : 'INACTIVA'}
                           </span>
                         </td>
+                        {isGeneralAdmin && (
+                          <td>
+                            <button type="button" className="table-action" onClick={() => openPriceListEditor(pl)}>
+                              Editar precios
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <p className="page-subtitle">
-                Catálogo de listas de precio de solo lectura — el backend no expone los precios por producto de cada
-                lista fuera de una venta, así que no se muestran acá.
-              </p>
+              {!isGeneralAdmin && (
+                <p className="page-subtitle">
+                  Solo el Administrador general puede cargar o editar los precios de cada lista.
+                </p>
+              )}
             </>
           )}
         </>
+      )}
+
+      {isSaleModalOpen && (
+        <div className="modal-overlay" onClick={closeSaleModal}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Registrar venta</h2>
+              <button type="button" className="modal-close" onClick={closeSaleModal} aria-label="Cerrar">
+                <CloseIcon />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSale}>
+              <div className="modal-body">
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                  <div className="field">
+                    <label htmlFor="sale-pricelist">Lista de precio</label>
+                    <select id="sale-pricelist" value={priceListId} onChange={(e) => setPriceListId(e.target.value)}>
+                      <option value="">Sin lista (precio de referencia)</option>
+                      {priceLists.map((pl) => (
+                        <option key={pl.id} value={pl.id}>{pl.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="sale-customer">Cliente (opcional)</label>
+                    <input
+                      id="sale-customer"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Consumidor final"
+                    />
+                  </div>
+                </div>
+
+                <div className="sal-lines-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Producto</th>
+                        <th>Cantidad</th>
+                        <th>Descuento %</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((line, i) => (
+                        <tr key={i}>
+                          <td>
+                            <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
+                              <option value="">Seleccione</option>
+                              {products.map((p) => (
+                                <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="number" min="0.01" step="0.01"
+                              value={line.quantity}
+                              onChange={(e) => updateLine(i, 'quantity', e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number" min="0" max="100" step="0.01"
+                              value={line.discountPct}
+                              onChange={(e) => updateLine(i, 'discountPct', e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            {lines.length > 1 && (
+                              <button type="button" className="sal-remove-line" onClick={() => removeLine(i)}>Quitar</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <p className="sal-form-note">
+                  El precio no se escribe a mano: lo resuelve el servidor según la lista elegida (o el precio de
+                  referencia del producto) al confirmar la venta.
+                </p>
+
+                <button type="button" className="sal-add-line" onClick={addLine}>+ Agregar línea</button>
+
+                {formError && <p className="form-error" style={{ marginBottom: 0 }}>{formError}</p>}
+                {formSuccess && <p className="sal-form-success" style={{ marginBottom: 0 }}>{formSuccess}</p>}
+              </div>
+
+              <div className="modal-footer">
+                <button type="submit" className="btn-primary">REGISTRAR VENTA</button>
+                <button type="button" className="btn-secondary" onClick={closeSaleModal}>Cerrar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingPriceList && (
+        <div className="modal-overlay" onClick={closePriceListEditor}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Precios — {editingPriceList.name}</h2>
+              <button type="button" className="modal-close" onClick={closePriceListEditor} aria-label="Cerrar">
+                <CloseIcon />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p className="sal-form-note" style={{ marginTop: 0 }}>
+                Todos los productos activos del catálogo — un producto sin precio acá no se puede vender usando
+                esta lista.
+              </p>
+
+              <div className="field" style={{ marginBottom: '14px' }}>
+                <label htmlFor="pl-item-search">Buscar producto</label>
+                <input
+                  id="pl-item-search"
+                  type="text"
+                  placeholder="SKU o nombre"
+                  value={priceListItemSearch}
+                  onChange={(e) => setPriceListItemSearch(e.target.value)}
+                />
+              </div>
+
+              {priceListItemsError && <p className="form-error">{priceListItemsError}</p>}
+
+              {priceListItemsLoading ? (
+                <p>Cargando...</p>
+              ) : (
+                <div className="sal-lines-table" style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>SKU</th>
+                        <th>Producto</th>
+                        <th>Precio</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {priceListItems.map((item) => (
+                        <tr key={item.productId}>
+                          <td className="mono text-muted">{item.productSku}</td>
+                          <td>{item.productName}</td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="Sin precio"
+                              value={item.price ?? ''}
+                              onChange={(e) => updatePriceListItemDraft(item.productId, e.target.value)}
+                            />
+                          </td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <button
+                              type="button"
+                              className="table-action"
+                              disabled={savingProductId === item.productId}
+                              onClick={() => handleSavePrice(item.productId, item.price)}
+                            >
+                              Guardar
+                            </button>
+                            {item.price !== null && (
+                              <button
+                                type="button"
+                                className="sal-remove-line"
+                                style={{ marginLeft: '10px' }}
+                                disabled={savingProductId === item.productId}
+                                onClick={() => handleRemovePrice(item.productId)}
+                              >
+                                Quitar
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+
+                      {priceListItems.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="text-muted" style={{ textAlign: 'center', padding: '24px' }}>
+                            Ningún producto coincide con la búsqueda.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" className="btn-secondary" onClick={closePriceListEditor} style={{ marginLeft: 0 }}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AppShell>
   );
