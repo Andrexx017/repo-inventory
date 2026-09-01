@@ -27,6 +27,21 @@ public class ProductRepository : IProductRepository
             .Include(p => p.ProductUnits).ThenInclude(pu => pu.Unit)
             .FirstOrDefaultAsync(p => p.Id == id);
 
+    public Task<Product?> GetBySkuAsync(string sku) =>
+        _db.Products.FirstOrDefaultAsync(p => p.Sku == sku);
+
+    public async Task AddAsync(Product product)
+    {
+        await _db.Products.AddAsync(product);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task UpdateAsync(Product product)
+    {
+        _db.Products.Update(product);
+        await _db.SaveChangesAsync();
+    }
+
     public async Task AddProductUnitAsync(ProductUnit productUnit)
     {
         await _db.ProductUnits.AddAsync(productUnit);

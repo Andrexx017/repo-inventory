@@ -22,6 +22,7 @@ export function useHomeDashboard() {
   const isGeneralAdmin = user?.role === 'general_admin';
 
   const [branchId, setBranchId] = useState(user?.branchId ? String(user.branchId) : '');
+  const [branches, setBranches] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [sales, setSales] = useState([]);
@@ -30,19 +31,21 @@ export function useHomeDashboard() {
   async function load() {
     let currentBranchId = branchId;
 
-    // general_admin no tiene sucursal propia — igual criterio que
-    // useInventory.js/usePurchases.js: se le arma un valor por defecto con la
-    // primera sucursal de la lista, en vez de dejar el dashboard vacío.
-    if (isGeneralAdmin && !currentBranchId) {
-      try {
-        const branches = await getBranches();
-        if (branches.length > 0) {
-          currentBranchId = String(branches[0].id);
-          setBranchId(currentBranchId);
-        }
-      } catch {
-        // Sin sucursales no hay nada que mostrar — se deja el dashboard en blanco.
+    // Siempre se cargan las sucursales (no solo para general_admin): además
+    // de armarle un valor por defecto al admin (que no tiene sucursal propia,
+    // igual criterio que useInventory.js/usePurchases.js), es lo que le
+    // permite a Home.jsx mostrar el nombre real de la sucursal de cualquier
+    // usuario en vez de un "Sucursal #id" genérico.
+    try {
+      const branchesData = await getBranches();
+      setBranches(branchesData);
+
+      if (isGeneralAdmin && !currentBranchId && branchesData.length > 0) {
+        currentBranchId = String(branchesData[0].id);
+        setBranchId(currentBranchId);
       }
+    } catch {
+      // Sin sucursales no hay nada que mostrar — se deja el dashboard en blanco.
     }
 
     if (!currentBranchId) {
@@ -98,6 +101,8 @@ export function useHomeDashboard() {
 
   return {
     loading,
+    branches,
+    branchId,
     pendingAlerts: pendingAlerts.map((a) => ({ ...a, severity: alertSeverity(a) })),
     activeOrdersCount: activePurchaseOrders.length,
     monthTotal,

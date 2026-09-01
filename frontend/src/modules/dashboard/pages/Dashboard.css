@@ -1,0 +1,454 @@
+.dash-topline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.dash-branch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dash-branch-row select {
+    width: 220px;
+    padding: 9px 11px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+}
+
+.dash-bento {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.dash-span-4 { grid-column: span 4; }
+.dash-span-5 { grid-column: span 5; }
+.dash-span-7 { grid-column: span 7; }
+.dash-span-8 { grid-column: span 8; }
+
+.dash-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.dash-card-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.dash-card h2 {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.dash-title-success {
+    color: var(--success);
+}
+
+.dash-title-with-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dash-card-caption {
+    color: var(--text-muted);
+    font-size: 11.5px;
+}
+
+.badge-admin {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 3px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+}
+
+/* KPIs apilados dentro de una sola tarjeta (a diferencia del kpi-grid de
+   Inventario/Reportes, acá comparten una tarjeta con el gráfico al lado) */
+
+.dash-kpi-stack {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.dash-kpi-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.dash-kpi-row:first-child { padding-top: 0; }
+.dash-kpi-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+.dash-kpi-row-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.dash-kpi-row-figure {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.dash-kpi-row-value {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.dash-kpi-row-value-text {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: right;
+}
+
+.dash-kpi-row-value-warning {
+    color: var(--warning);
+}
+
+.delta-up {
+    color: var(--success);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 700;
+    font-size: 11px;
+}
+
+.delta-down {
+    color: var(--danger);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 700;
+    font-size: 11px;
+}
+
+/* Gráfico de barras (RF-29) */
+
+.dash-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    height: 150px;
+}
+
+.dash-chart-col {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.dash-chart-bar {
+    width: 100%;
+    max-width: 56px;
+    border-radius: 4px 4px 0 0;
+    background: var(--border);
+}
+
+.dash-chart-bar-current {
+    background: var(--accent);
+}
+
+.dash-chart-label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
+}
+
+.dash-chart-label-current {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.dash-chart-empty {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin: 0;
+}
+
+.dash-chart-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 4px 0 10px;
+}
+
+.dash-chart-title {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.dash-chart-title-delta {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Rotación de inventario (RF-30) y reabastecimiento (RF-32) — misma lista
+   mini-fila con una barra de magnitud a la derecha */
+
+.dash-rot-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dash-rot-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+}
+
+.dash-rot-row:last-child { border-bottom: none; }
+
+.dash-rot-name {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-inline-pill {
+    font-size: 9.5px;
+    padding: 2px 6px;
+}
+
+.dash-rot-bar-track {
+    width: 64px;
+    flex: 0 0 auto;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.dash-rot-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+}
+
+.dash-rot-bar-fill-success { background: var(--success); }
+.dash-rot-bar-fill-muted { background: var(--text-muted); }
+.dash-rot-bar-fill-warning { background: var(--warning); }
+.dash-rot-bar-fill-danger { background: var(--danger); }
+
+.dash-restock-btn {
+    flex: 0 0 auto;
+}
+
+/* Transferencias activas + impacto (RF-31) */
+
+.dash-impact-strip {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.dash-impact-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin-top: 8px;
+}
+
+.dash-impact-item {
+    font-size: 12.5px;
+}
+
+/* Comparativa entre sucursales (RF-33, admin) */
+
+.dash-clickable-row {
+    cursor: pointer;
+}
+
+.dash-clickable-row:hover {
+    background: var(--surface-2, rgba(255, 255, 255, 0.02));
+}
+
+/* Modal — Registrar reabastecimiento */
+
+.dash-modal-sub {
+    margin: 0 0 14px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.dash-modal-note {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.dash-stock-strip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+}
+
+.dash-stock-figure {
+    display: flex;
+    flex-direction: column;
+}
+
+.dash-stock-figure-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.4px;
+}
+
+.dash-stock-figure-value {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.dash-stock-divider {
+    width: 1px;
+    height: 28px;
+    background: var(--border);
+}
+
+.dash-stock-pill {
+    margin-left: auto;
+}
+
+/* Modal — Detalle de sucursal */
+
+.dash-mini-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.dash-mini-kpi {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dash-mini-kpi-label {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.4px;
+}
+
+.dash-mini-kpi-value {
+    font-family: var(--font-mono);
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.dash-link-out {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--cyan);
+}
+
+@media (max-width: 900px) {
+    .dash-topline {
+        flex-direction: column;
+    }
+
+    .dash-branch-row {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+    .dash-branch-row select {
+        width: 100%;
+    }
+
+    .dash-bento {
+        grid-template-columns: 1fr;
+    }
+
+    .dash-span-4,
+    .dash-span-5,
+    .dash-span-7,
+    .dash-span-8 {
+        grid-column: span 1;
+    }
+
+    .dash-mini-kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* RUTA/ESTADO/URG. y la comparativa de sucursales usan <table
+       className="data-table"> directo dentro de .dash-card, sin el wrapper
+       .table-card que scrollea en Catálogo/Inventario/etc — sin esto se
+       desbordan en vez de scrollear. */
+    .dash-card {
+        overflow-x: auto;
+    }
+
+    .dash-card .data-table {
+        min-width: 420px;
+    }
+
+    .dash-chart {
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .dash-chart-col {
+        min-width: 34px;
+    }
+}
+
+@media (max-width: 560px) {
+    .dash-mini-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+}

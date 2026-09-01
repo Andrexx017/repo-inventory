@@ -18,4 +18,16 @@ public class UnitOfMeasureRepository : IUnitOfMeasureRepository
 
     public Task<UnitOfMeasure?> GetByIdAsync(long id) =>
         _db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Id == id);
+
+    public Task<UnitOfMeasure?> GetByNameAsync(string name) =>
+        _db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Name == name);
+
+    public Task<UnitOfMeasure?> GetByAbbreviationAsync(string abbreviation) =>
+        _db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Abbreviation == abbreviation);
+
+    public async Task AddAsync(UnitOfMeasure unit)
+    {
+        await _db.UnitsOfMeasure.AddAsync(unit);
+        await _db.SaveChangesAsync();
+    }
 }

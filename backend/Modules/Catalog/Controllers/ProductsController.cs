@@ -29,6 +29,22 @@ public class ProductsController : ControllerBase
         return product is null ? NotFound() : Ok(product);
     }
 
+    [HttpPost]
+    [Authorize(Roles = RoleCodes.GeneralAdmin)]
+    public async Task<ActionResult<ProductDto>> Create(CreateProductDto request)
+    {
+        var product = await _productService.CreateAsync(request);
+        return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
+    }
+
+    [HttpPut("{id:long}")]
+    [Authorize(Roles = RoleCodes.GeneralAdmin)]
+    public async Task<ActionResult<ProductDto>> Update(long id, UpdateProductDto request)
+    {
+        var product = await _productService.UpdateAsync(id, request);
+        return product is null ? NotFound() : Ok(product);
+    }
+
     // RF-10: a diferencia de los GET (abiertos a cualquier rol autenticado, RF-05),
     // gestionar el catálogo es exclusivo del Administrador general — mismo criterio
     // que BranchesController/RolesController/UsersController. El [Authorize] simple

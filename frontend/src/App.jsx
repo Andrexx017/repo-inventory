@@ -4,7 +4,6 @@ import LoginPage from './modules/auth/pages/LoginPage';
 import ForgotPasswordPage from './modules/auth/pages/ForgotPasswordPage';
 import ResetPasswordPage from './modules/auth/pages/ResetPasswordPage';
 import Branches from './modules/auth/pages/Branches';
-import Roles from './modules/auth/pages/Roles';
 import Users from './modules/auth/pages/Users';
 import Products from './modules/catalog/pages/Products';
 import Inventory from './modules/inventory/pages/Inventory';
@@ -12,6 +11,7 @@ import Purchases from './modules/purchases/pages/Purchases';
 import Sales from './modules/sales/pages/Sales';
 import Transfers from './modules/transfers/pages/Transfers';
 import Reports from './modules/reports/pages/Reports';
+import Dashboard from './modules/dashboard/pages/Dashboard';
 import RequireAuth from './shared/components/RequireAuth';
 import RequireRole from './shared/components/RequireRole';
 
@@ -76,19 +76,18 @@ function App() {
         }
       />
       <Route
+        path="/dashboard"
+        element={
+          <RequireAuth>
+            <Dashboard />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/branches"
         element={
           <RequireRole roles={['general_admin']}>
             <Branches />
-          </RequireRole>
-        }
-      />
-      
-      <Route
-        path="/roles"
-        element={
-          <RequireRole roles={['general_admin']}>
-            <Roles />
           </RequireRole>
         }
       />

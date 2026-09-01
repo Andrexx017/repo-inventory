@@ -9,11 +9,13 @@ public class ProductService : IProductService
 {
     private readonly IProductRepository _products;
     private readonly IUnitOfMeasureRepository _units;
+    private readonly IProductCategoryRepository _categories;
 
-    public ProductService(IProductRepository products, IUnitOfMeasureRepository units)
+    public ProductService(IProductRepository products, IUnitOfMeasureRepository units, IProductCategoryRepository categories)
     {
         _products = products;
         _units = units;
+        _categories = categories;
     }
 
     public async Task<IReadOnlyList<ProductDto>> GetAllAsync()
@@ -26,6 +28,76 @@ public class ProductService : IProductService
     {
         var product = await _products.GetByIdAsync(id);
         return product is null ? null : ToDto(product);
+    }
+
+    public async Task<ProductDto> CreateAsync(CreateProductDto request)
+    {
+        if (await _products.GetBySkuAsync(request.Sku) is not null)
+        {
+            throw new ConflictException($"Ya existe un producto con el SKU '{request.Sku}'.");
+        }
+
+        if (await _units.GetByIdAsync(request.BaseUnitId) is null)
+        {
+            throw new DomainException($"La unidad de medida {request.BaseUnitId} no existe.");
+        }
+
+        if (request.CategoryId is not null && await _categories.GetByIdAsync(request.CategoryId.Value) is null)
+        {
+            throw new DomainException($"La categoría {request.CategoryId} no existe.");
+        }
+
+        var product = new Product
+        {
+            Sku = request.Sku,
+            Name = request.Name,
+            Description = request.Description,
+            CategoryId = request.CategoryId,
+            BaseUnitId = request.BaseUnitId,
+            ReferencePrice = request.ReferencePrice,
+            Active = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+
+        await _products.AddAsync(product);
+
+        // Se vuelve a pedir el producto completo (mismo criterio que AddUnitAsync)
+        // para que Category/BaseUnit vengan resueltos por el JOIN de GetByIdAsync.
+        var created = await _products.GetByIdAsync(product.Id);
+        return ToDto(created!);
+    }
+
+    public async Task<ProductDto?> UpdateAsync(long id, UpdateProductDto request)
+    {
+        var product = await _products.GetByIdAsync(id);
+        if (product is null)
+        {
+            return null;
+        }
+
+        if (await _units.GetByIdAsync(request.BaseUnitId) is null)
+        {
+            throw new DomainException($"La unidad de medida {request.BaseUnitId} no existe.");
+        }
+
+        if (request.CategoryId is not null && await _categories.GetByIdAsync(request.CategoryId.Value) is null)
+        {
+            throw new DomainException($"La categoría {request.CategoryId} no existe.");
+        }
+
+        product.Name = request.Name;
+        product.Description = request.Description;
+        product.CategoryId = request.CategoryId;
+        product.BaseUnitId = request.BaseUnitId;
+        product.ReferencePrice = request.ReferencePrice;
+        product.Active = request.Active;
+
+        await _products.UpdateAsync(product);
+
+        // Igual criterio que CreateAsync: releer para que Category/BaseUnit queden
+        // resueltos con el valor nuevo, no con la navegación ya cargada del FK viejo.
+        var updated = await _products.GetByIdAsync(id);
+        return ToDto(updated!);
     }
 
     public async Task<ProductDto> AddUnitAsync(long productId, CreateProductUnitDto request)
