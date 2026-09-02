@@ -191,6 +191,10 @@
 .app-bell {
     position: relative;
     display: flex;
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
 }
 
 .app-bell-badge {
