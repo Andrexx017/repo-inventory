@@ -133,13 +133,16 @@ export default function Home() {
                             <span className="quick-card-sub">Exportar a PDF o Excel</span>
                         </Link>
 
-                        <Link to="/dashboard" className="quick-card">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M4 20V10" /><path d="M12 20V4" /><path d="M20 20v-7" />
-                            </svg>
-                            <span className="quick-card-title">Dashboard</span>
-                            <span className="quick-card-sub">Indicadores de la operación</span>
-                        </Link>
+                        {/* UC12/UC05 del diagrama de casos de uso: Dashboard es de Gerente y Admin. */}
+                        {(user?.role === 'general_admin' || user?.role === 'branch_manager') && (
+                            <Link to="/dashboard" className="quick-card">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M4 20V10" /><path d="M12 20V4" /><path d="M20 20v-7" />
+                                </svg>
+                                <span className="quick-card-title">Dashboard</span>
+                                <span className="quick-card-sub">Indicadores de la operación</span>
+                            </Link>
+                        )}
 
                     </div>
                 </div>
