@@ -78,9 +78,9 @@ function App() {
       <Route
         path="/dashboard"
         element={
-          <RequireAuth>
+          <RequireRole roles={['general_admin', 'branch_manager']}>
             <Dashboard />
-          </RequireAuth>
+          </RequireRole>
         }
       />
       <Route

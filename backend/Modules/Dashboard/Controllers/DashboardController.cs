@@ -6,14 +6,15 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Inventory.Modules.Dashboard.Controllers;
 
-// [Authorize] simple a nivel de clase: los 4 endpoints acotados a branchId usan
-// SameBranch (igual criterio que Inventario/Compras/Ventas — cualquier rol
-// autenticado puede ver el dashboard de SU propia sucursal). El único endpoint
-// sin branchId (RF-33, comparativa entre sucursales) lleva su propia
-// restricción de rol, ver más abajo.
+// UC12/UC05 del diagrama de casos de uso: el Dashboard (de su sucursal o
+// comparativo) es de Gerente y Admin — el Operador de inventario no tiene
+// caso de uso de Dashboard. Los 4 endpoints acotados a branchId combinan
+// SameBranch (misma sucursal) con la restricción de rol de cada método; el
+// único endpoint sin branchId (RF-33, comparativa entre sucursales) lleva su
+// propia restricción, ver más abajo.
 [ApiController]
 [Route("api/dashboard")]
-[Authorize]
+[Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.BranchManager)]
 public class DashboardController : ControllerBase
 {
     private readonly IDashboardService _dashboardService;

@@ -44,6 +44,9 @@ export default function AppShell({ title, children }) {
     };
 
     const isGeneralAdmin = user?.role === 'general_admin';
+    // UC12/UC05 del diagrama de casos de uso: Dashboard es de Gerente y Admin,
+    // el Operador de inventario no lo tiene.
+    const canViewDashboard = user?.role === 'general_admin' || user?.role === 'branch_manager';
 
     return (
         <div className="app-shell">
@@ -133,12 +136,14 @@ export default function AppShell({ title, children }) {
                         Reportes
                     </NavLink>
 
-                    <NavLink to="/dashboard" className={navLinkClass}>
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M4 20V10" /><path d="M12 20V4" /><path d="M20 20v-7" />
-                        </svg>
-                        Dashboard
-                    </NavLink>
+                    {canViewDashboard && (
+                        <NavLink to="/dashboard" className={navLinkClass}>
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M4 20V10" /><path d="M12 20V4" /><path d="M20 20v-7" />
+                            </svg>
+                            Dashboard
+                        </NavLink>
+                    )}
 
                     {isGeneralAdmin && (
                         <>
