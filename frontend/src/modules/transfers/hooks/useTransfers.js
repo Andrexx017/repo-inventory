@@ -5,11 +5,16 @@ import { getBranches } from '../../auth/api/branchesApi';
 import { getProducts } from '../../catalog/api/productsApi';
 import {
   getTransfers,
+  getTransfersKpiSummary,
+  getTransferById,
   createTransfer,
   prepareTransfer,
   shipTransfer,
   receiveTransfer,
 } from '../api/transfersApi';
+import { startOfDayIso, endOfDayIso } from '../../../shared/dateRange';
+
+const TRANSFERS_PAGE_SIZE = 25;
 
 export const STATUS_LABELS = {
   requested: 'SOLICITADA',
@@ -57,22 +62,28 @@ export function useTransfers() {
   const isInventoryOperator = user?.role === 'inventory_operator';
   const isBranchManager = user?.role === 'branch_manager';
 
-  // RF-20/21/22: solicitar, preparar y despachar son responsabilidad del
-  // Operador de inventario (más general_admin, RF-04). RF-23/24: confirmar la
-  // recepción es del Gerente de sucursal — mismo reparto de roles que ya usa
-  // TransfersController por método, no por la clase completa.
-  const canRequestTransfer = isInventoryOperator || isGeneralAdmin;
+  // Alineado con el diagrama de casos de uso (UC19/UC20/UC11): solicitar
+  // transferencia (RF-20) es de Operador, Gerente y Admin. Preparar/despachar
+  // (RF-21/22) sigue siendo exclusivo de Operador+Admin — el Gerente no
+  // despacha físicamente. Confirmar recepción (RF-23/24) es de Gerente,
+  // Operador y Admin. Mismo reparto de roles que TransfersController por método.
+  const canRequestTransfer = isInventoryOperator || isGeneralAdmin || isBranchManager;
   const canManageOrigin = isInventoryOperator || isGeneralAdmin;
-  const canManageDestination = isBranchManager || isGeneralAdmin;
+  const canManageDestination = isBranchManager || isGeneralAdmin || isInventoryOperator;
 
   const [branches, setBranches] = useState([]);
   const [branchId, setBranchId] = useState(user?.branchId ? String(user.branchId) : '');
   const [products, setProducts] = useState([]);
   const [transfers, setTransfers] = useState([]);
+  const [transfersPage, setTransfersPage] = useState(1);
+  const [transfersTotalCount, setTransfersTotalCount] = useState(0);
+  const [transfersKpi, setTransfersKpi] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [tab, setTab] = useState('todas');
+  const [transfersFilterFrom, setTransfersFilterFrom] = useState('');
+  const [transfersFilterTo, setTransfersFilterTo] = useState('');
 
   const [originBranchId, setOriginBranchId] = useState('');
   const [urgency, setUrgency] = useState('medium');
@@ -124,8 +135,19 @@ export function useTransfers() {
 
     setLoading(true);
     try {
-      const data = await getTransfers(branchId);
-      setTransfers(data);
+      const [page, kpi] = await Promise.all([
+        getTransfers(branchId, {
+          statuses: TAB_STATUSES[tab] || undefined,
+          from: transfersFilterFrom ? startOfDayIso(transfersFilterFrom) : undefined,
+          to: transfersFilterTo ? endOfDayIso(transfersFilterTo) : undefined,
+          page: transfersPage,
+          pageSize: TRANSFERS_PAGE_SIZE,
+        }),
+        getTransfersKpiSummary(branchId),
+      ]);
+      setTransfers(page.items);
+      setTransfersTotalCount(page.totalCount);
+      setTransfersKpi(kpi);
     } catch (err) {
       setError(err.message || 'No se pudieron cargar las transferencias.');
     } finally {
@@ -139,25 +161,32 @@ export function useTransfers() {
 
   useEffect(() => {
     loadTransfers();
-  }, [branchId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId, tab, transfersFilterFrom, transfersFilterTo, transfersPage]);
+
+  // Volver a la página 1 cuando cambia la pestaña o el rango de fechas —
+  // evita quedar en una página que ya no existe para el nuevo filtro.
+  useEffect(() => {
+    setTransfersPage(1);
+  }, [tab, transfersFilterFrom, transfersFilterTo]);
 
   // Llegar acá desde una notificación de la campana (transferencia en
   // tránsito) trae el id en location.state — igual patrón que
   // useInventory.js con location.state.productId desde el Dashboard. Se
-  // limpia el state de navegación para que un refresh no reabra el modal.
+  // busca directo por id (no dentro de `transfers`, que ahora es solo la
+  // página/pestaña visible) y se limpia el state de navegación para que un
+  // refresh no reabra el modal.
   useEffect(() => {
-    if (location.state?.openTransferId && transfers.length > 0) {
-      const target = transfers.find((t) => t.id === location.state.openTransferId);
-      if (target) setViewTransfer(target);
+    if (location.state?.openTransferId && branchId) {
+      getTransferById(branchId, location.state.openTransferId)
+        .then((t) => setViewTransfer(t))
+        .catch(() => {});
       navigate(location.pathname, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transfers]);
+  }, [branchId]);
 
-  const visibleTransfers = transfers.filter((t) => {
-    const statuses = TAB_STATUSES[tab];
-    return !statuses || statuses.includes(t.status);
-  });
+  const transfersTotalPages = Math.max(1, Math.ceil(transfersTotalCount / TRANSFERS_PAGE_SIZE));
 
   function resetTransferForm() {
     setOriginBranchId('');
@@ -399,8 +428,15 @@ export function useTransfers() {
     isGeneralAdmin,
     canRequestTransfer,
     products,
-    transfers: visibleTransfers,
-    allTransfers: transfers,
+    transfers,
+    transfersPage,
+    setTransfersPage,
+    transfersTotalPages,
+    transfersFilterFrom,
+    setTransfersFilterFrom,
+    transfersFilterTo,
+    setTransfersFilterTo,
+    transfersKpi,
     loading,
     error,
 

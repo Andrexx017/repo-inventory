@@ -1,4 +1,5 @@
 using Inventory.Infrastructure.Persistence;
+using Inventory.Modules.Transfers.Dtos;
 using Inventory.Modules.Transfers.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,7 +29,12 @@ public class TransferRepository : ITransferRepository
     // logístico (preparación/despacho) que este filtro está pensado para mostrar.
     private static readonly string[] ActiveStatuses = ["preparing", "in_transit", "partially_received"];
 
-    public async Task<IReadOnlyList<Transfer>> GetByBranchAsync(long branchId, bool activeOnly = false)
+    // statuses (RF-26/pestañas del frontend: solicitadas/tránsito/recibidas) filtra
+    // por un conjunto explícito de estados — a diferencia de activeOnly (RF-27,
+    // "en curso"), que es un conjunto fijo. Se pueden combinar con AND.
+    public async Task<IReadOnlyList<Transfer>> GetByBranchAsync(
+        long branchId, bool activeOnly = false, IReadOnlyList<string>? statuses = null,
+        DateTimeOffset? from = null, DateTimeOffset? to = null)
     {
         var query = _db.Transfers
             .Where(t => t.OriginBranchId == branchId || t.DestinationBranchId == branchId);
@@ -38,12 +44,62 @@ public class TransferRepository : ITransferRepository
             query = query.Where(t => ActiveStatuses.Contains(t.Status));
         }
 
+        if (statuses is { Count: > 0 })
+        {
+            query = query.Where(t => statuses.Contains(t.Status));
+        }
+
+        if (from is not null)
+        {
+            query = query.Where(t => t.RequestDate >= from);
+        }
+
+        if (to is not null)
+        {
+            query = query.Where(t => t.RequestDate <= to);
+        }
+
         return await query
             .Include(t => t.OriginBranch)
             .Include(t => t.DestinationBranch)
             .Include(t => t.Items).ThenInclude(i => i.Product)
             .OrderByDescending(t => t.RequestDate)
             .ToListAsync();
+    }
+
+    // Indicadores del encabezado de Transferencias — agregados/proyecciones
+    // livianas en vez de traer el grafo completo (Include de sucursales/items)
+    // que sí necesita GetByBranchAsync para armar el TransferDto.
+    public async Task<TransfersKpiDto> GetKpiSummaryAsync(long branchId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var monthEnd = monthStart.AddMonths(1);
+
+        var branchTransfers = _db.Transfers
+            .Where(t => t.OriginBranchId == branchId || t.DestinationBranchId == branchId);
+
+        var inTransit = await branchTransfers.CountAsync(t => t.Status == "in_transit");
+        var pendingAction = await branchTransfers.CountAsync(t => t.Status == "requested" || t.Status == "preparing");
+
+        var receivedThisMonthQuery = branchTransfers.Where(t =>
+            (t.Status == "fully_received" || t.Status == "partially_received")
+            && t.ActualArrivalDate != null
+            && t.ActualArrivalDate >= monthStart && t.ActualArrivalDate < monthEnd);
+
+        var receivedThisMonth = await receivedThisMonthQuery.CountAsync();
+        var receivedWithShortageThisMonth = await receivedThisMonthQuery.CountAsync(t => t.Status == "partially_received");
+
+        var delayPairs = await branchTransfers
+            .Where(t => t.EstimatedArrivalDate != null && t.ActualArrivalDate != null)
+            .Select(t => new { t.EstimatedArrivalDate, t.ActualArrivalDate })
+            .ToListAsync();
+
+        double? averageDelayDays = delayPairs.Count > 0
+            ? delayPairs.Average(p => (p.ActualArrivalDate!.Value - p.EstimatedArrivalDate!.Value).TotalDays)
+            : null;
+
+        return new TransfersKpiDto(inTransit, pendingAction, receivedThisMonth, receivedWithShortageThisMonth, averageDelayDays);
     }
 
     public async Task<IReadOnlyList<Transfer>> GetForComplianceReportAsync(long? branchId)

@@ -112,8 +112,9 @@ function Stepper({ transfer }) {
 export default function Transfers() {
   const {
     branches, branchId, setBranchId, isGeneralAdmin, canRequestTransfer,
-    products, transfers, allTransfers, loading, error,
+    products, transfers, transfersPage, setTransfersPage, transfersTotalPages, transfersKpi, loading, error,
     tab, setTab,
+    transfersFilterFrom, setTransfersFilterFrom, transfersFilterTo, setTransfersFilterTo,
     originBranchId, setOriginBranchId, urgency, setUrgency,
     lines, addLine, removeLine, updateLine,
     formError, formSuccess, handleCreateTransfer,
@@ -130,23 +131,14 @@ export default function Transfers() {
     canPrepare, canShip, canReceiveTransfer,
   } = useTransfers();
 
-  const enTransito = allTransfers.filter((t) => t.status === 'in_transit').length;
-  const pendientesAccion = allTransfers.filter((t) => ['requested', 'preparing'].includes(t.status)).length;
-
-  const now = new Date();
-  const recibidasEsteMes = allTransfers.filter((t) => {
-    if (!['fully_received', 'partially_received'].includes(t.status) || !t.actualArrivalDate) return false;
-    const d = new Date(t.actualArrivalDate);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  });
-  const conFaltante = recibidasEsteMes.filter((t) => t.status === 'partially_received').length;
-
-  const delaySamples = allTransfers
-    .map((t) => t.deliveryDelayDays)
-    .filter((d) => d !== null && d !== undefined);
-  const avgDelay = delaySamples.length > 0
-    ? delaySamples.reduce((sum, d) => sum + d, 0) / delaySamples.length
-    : null;
+  // transfersKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync)
+  // — no se puede calcular desde `transfers` porque esa lista ahora está
+  // paginada (y filtrada por la pestaña activa).
+  const enTransito = transfersKpi?.inTransit ?? 0;
+  const pendientesAccion = transfersKpi?.pendingAction ?? 0;
+  const recibidasEsteMesCount = transfersKpi?.receivedThisMonth ?? 0;
+  const conFaltante = transfersKpi?.receivedWithShortageThisMonth ?? 0;
+  const avgDelay = transfersKpi?.averageDelayDays ?? null;
 
   return (
     <AppShell title="Transferencias">
@@ -183,7 +175,7 @@ export default function Transfers() {
             </div>
             <div className="trf-kpi-card">
               <span className="trf-kpi-label">RECIBIDAS ESTE MES</span>
-              <span className="trf-kpi-value">{recibidasEsteMes.length}</span>
+              <span className="trf-kpi-value">{recibidasEsteMesCount}</span>
               <span className="trf-kpi-sub">{conFaltante} con faltante detectado</span>
             </div>
             <div className="trf-kpi-card">
@@ -210,6 +202,32 @@ export default function Transfers() {
               </button>
             </div>
           )}
+
+          <div className="filter-row">
+            <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
+              <label htmlFor="trf-filter-from">Desde</label>
+              <input
+                id="trf-filter-from"
+                type="date"
+                value={transfersFilterFrom}
+                max={transfersFilterTo || undefined}
+                onChange={(e) => setTransfersFilterFrom(e.target.value)}
+              />
+            </div>
+            <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
+              <label htmlFor="trf-filter-to">Hasta</label>
+              <input
+                id="trf-filter-to"
+                type="date"
+                value={transfersFilterTo}
+                min={transfersFilterFrom || undefined}
+                onChange={(e) => setTransfersFilterTo(e.target.value)}
+              />
+            </div>
+            <span className="inv-filter-hint" style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '12.5px' }}>
+              Filtra por fecha de solicitud
+            </span>
+          </div>
 
           <div className="table-card">
             <table className="data-table">
@@ -252,6 +270,26 @@ export default function Transfers() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          <div className="inv-pagination">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={transfersPage <= 1}
+              onClick={() => setTransfersPage((p) => p - 1)}
+            >
+              Anterior
+            </button>
+            <span className="mono text-muted">Página {transfersPage} de {transfersTotalPages}</span>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={transfersPage >= transfersTotalPages}
+              onClick={() => setTransfersPage((p) => p + 1)}
+            >
+              Siguiente
+            </button>
           </div>
 
           {viewTransfer && (

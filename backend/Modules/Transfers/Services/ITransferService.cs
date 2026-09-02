@@ -1,4 +1,5 @@
 using Inventory.Modules.Transfers.Dtos;
+using Inventory.Shared.Dtos;
 
 namespace Inventory.Modules.Transfers.Services;
 
@@ -9,8 +10,14 @@ public interface ITransferService
 
     // sortBy (RF-26): "priority", "cost" o "time" — clasifica las rutas de la
     // sucursal por esos tres criterios; null = orden por defecto (más reciente
-    // primero). activeOnly (RF-27): solo transferencias en curso.
-    Task<IReadOnlyList<TransferDto>> GetByBranchAsync(long branchId, string? sortBy = null, bool activeOnly = false);
+    // primero). activeOnly (RF-27): solo transferencias en curso. statuses:
+    // filtro explícito por estado(s) (pestañas del frontend). from/to filtran
+    // por rango de fechas sobre RequestDate. Paginado (page/pageSize).
+    Task<PagedResult<TransferDto>> GetByBranchAsync(
+        long branchId, string? sortBy, bool activeOnly, IReadOnlyList<string>? statuses,
+        DateTimeOffset? from, DateTimeOffset? to, int page, int pageSize);
+
+    Task<TransfersKpiDto> GetKpiSummaryAsync(long branchId);
     Task<TransferDto?> GetByIdAsync(long id);
 
     // RF-21: la sucursal ORIGEN revisa disponibilidad y confirma/ajusta cuánto

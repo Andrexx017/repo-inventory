@@ -104,7 +104,8 @@ public class DashboardService : IDashboardService
         // Reusa la misma definición de "activa" que ya decidió RF-27
         // (TransferRepository.ActiveStatuses: preparing/in_transit/partially_received,
         // sin "requested") en vez de inventar un segundo criterio acá.
-        var activeTransfers = await _transferService.GetByBranchAsync(branchId, activeOnly: true);
+        var activeTransfers = (await _transferService.GetByBranchAsync(
+            branchId, sortBy: null, activeOnly: true, statuses: null, from: null, to: null, page: 1, pageSize: int.MaxValue)).Items;
 
         var inventoryImpact = activeTransfers
             .Where(t => t.DestinationBranchId == branchId

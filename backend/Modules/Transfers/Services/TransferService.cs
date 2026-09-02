@@ -6,6 +6,7 @@ using Inventory.Modules.Inventory.Services;
 using Inventory.Modules.Transfers.Dtos;
 using Inventory.Modules.Transfers.Entities;
 using Inventory.Modules.Transfers.Repositories;
+using Inventory.Shared.Dtos;
 using Inventory.Shared.Exceptions;
 
 namespace Inventory.Modules.Transfers.Services;
@@ -124,8 +125,13 @@ public class TransferService : ITransferService
         return ToDto(transfer);
     }
 
-    public async Task<IReadOnlyList<TransferDto>> GetByBranchAsync(
-        long branchId, string? sortBy = null, bool activeOnly = false)
+    // Paginado en memoria (Skip/Take sobre la lista ya ordenada) en vez de en la
+    // consulta SQL: sortBy=priority ordena por un ranking (RoutePriorityRank)
+    // que no vive como columna, así que el orden final solo se puede calcular
+    // después de traer los resultados filtrados por sucursal/estado.
+    public async Task<PagedResult<TransferDto>> GetByBranchAsync(
+        long branchId, string? sortBy, bool activeOnly, IReadOnlyList<string>? statuses,
+        DateTimeOffset? from, DateTimeOffset? to, int page, int pageSize)
     {
         if (!string.IsNullOrWhiteSpace(sortBy) && !AllowedSortKeys.Contains(sortBy))
         {
@@ -133,7 +139,7 @@ public class TransferService : ITransferService
                 $"Criterio de clasificación inválido: '{sortBy}'. Valores permitidos: priority, cost, time.");
         }
 
-        var transfers = await _transfers.GetByBranchAsync(branchId, activeOnly);
+        var transfers = await _transfers.GetByBranchAsync(branchId, activeOnly, statuses, from, to);
         var dtos = transfers.Select(ToDto).AsEnumerable();
 
         // RF-26: clasifica las rutas por prioridad, costo o tiempo estimado de
@@ -149,8 +155,12 @@ public class TransferService : ITransferService
             _ => dtos,
         };
 
-        return dtos.ToList();
+        var dtoList = dtos.ToList();
+        var pageItems = dtoList.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        return new PagedResult<TransferDto>(pageItems, dtoList.Count, page, pageSize);
     }
+
+    public Task<TransfersKpiDto> GetKpiSummaryAsync(long branchId) => _transfers.GetKpiSummaryAsync(branchId);
 
     public async Task<TransferDto?> GetByIdAsync(long id)
     {

@@ -131,9 +131,8 @@ public class ReportService : IReportService
     {
         // Igual que el resto del módulo Transfers: una sucursal ve tanto lo que
         // solicitó (destino) como lo que le piden despachar (origen).
-        var transfers = (await _transferService.GetByBranchAsync(branchId))
-            .Where(t => t.RequestDate >= from && t.RequestDate <= to)
-            .ToList();
+        var transfers = (await _transferService.GetByBranchAsync(
+            branchId, sortBy: null, activeOnly: false, statuses: null, from, to, page: 1, pageSize: int.MaxValue)).Items;
 
         string[] columns =
             ["N° transferencia", "Origen", "Destino", "Estado", "Urgencia", "Fecha solicitud", "Fecha despacho", "Fecha llegada real"];

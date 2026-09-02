@@ -1,11 +1,17 @@
 import { getJson, postJson, putJson } from '../../../shared/apiClient';
 
-export function getTransfers(branchId, { sortBy, activeOnly } = {}) {
-  const params = new URLSearchParams();
+export function getTransfers(branchId, { sortBy, activeOnly, statuses, from, to, page = 1, pageSize = 25 } = {}) {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   if (sortBy) params.set('sortBy', sortBy);
   if (activeOnly) params.set('activeOnly', 'true');
-  const query = params.toString() ? `?${params.toString()}` : '';
-  return getJson(`/api/transfers/${branchId}${query}`);
+  if (statuses) params.set('statuses', statuses.join(','));
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  return getJson(`/api/transfers/${branchId}?${params}`);
+}
+
+export function getTransfersKpiSummary(branchId) {
+  return getJson(`/api/transfers/${branchId}/kpi-summary`);
 }
 
 export function getTransferById(branchId, id) {
