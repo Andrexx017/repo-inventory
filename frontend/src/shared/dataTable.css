@@ -128,6 +128,46 @@
     text-decoration: underline;
 }
 
+/* Fila de filtros sobre un listado (ej. Ventas/Transferencias por fecha) —
+   mismo look que .inv-filter-row/.pur-filter-row, generalizado acá para no
+   repetir el bloque en cada módulo que agregue su primer filtro. */
+.filter-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+}
+
+.filter-row select {
+    width: 260px;
+    padding: 9px 11px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13.5px;
+}
+
+@media (max-width: 900px) {
+    .filter-row select {
+        width: 100%;
+    }
+}
+
+/* Paginación server-side de listados/historiales (Inventario, Ventas,
+   Transferencias, Compras, Catálogo). */
+.inv-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 14px 0;
+}
+
 /* Formularios de creación/edición */
 
 .form-card {
