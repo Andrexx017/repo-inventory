@@ -161,7 +161,7 @@ export default function Home() {
                             <div key={alert.id} className={`alert-row alert-row-${alert.severity === 'critico' ? 'danger' : 'warning'}`}>
                                 <div>
                                     <div className="alert-name">{alert.productName}</div>
-                                    <div className="alert-sub">Stock: {alert.quantityAtTrigger} · Mínimo: {alert.thresholdValue}</div>
+                                    <div className="alert-sub">Stock: {alert.currentQuantity} · Mínimo: {alert.minimumStock}</div>
                                 </div>
                                 <span className={`alert-tag alert-tag-${alert.severity === 'critico' ? 'danger' : 'warning'}`}>
                                     {SEVERITY_LABELS[alert.severity]}

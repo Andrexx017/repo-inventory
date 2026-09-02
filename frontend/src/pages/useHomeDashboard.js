@@ -1,21 +1,10 @@
 import { useEffect, useState } from 'react';
 import { getUser } from '../shared/apiClient';
 import { getBranches } from '../modules/auth/api/branchesApi';
-import { getAlerts } from '../modules/inventory/api/inventoryApi';
-import { getPurchaseOrders } from '../modules/purchases/api/purchaseOrdersApi';
-import { getSales } from '../modules/sales/api/salesApi';
-
-function isSameMonth(dateValue, reference) {
-  const d = new Date(dateValue);
-  return d.getMonth() === reference.getMonth() && d.getFullYear() === reference.getFullYear();
-}
-
-// Mismo semáforo que useInventory.js (sección 2.14), pero sobre StockAlertDto
-// (quantityAtTrigger/thresholdValue) en vez de InventoryItemDto — son formas
-// distintas de la misma regla: "por debajo de la mitad del mínimo" es crítico.
-function alertSeverity(alert) {
-  return alert.quantityAtTrigger <= alert.thresholdValue * 0.5 ? 'critico' : 'bajo';
-}
+import { getAlerts, getInventoryByBranch } from '../modules/inventory/api/inventoryApi';
+import { stockStatus } from '../modules/inventory/hooks/useInventory';
+import { getPurchaseOrdersKpiSummary } from '../modules/purchases/api/purchaseOrdersApi';
+import { getSalesKpiSummary } from '../modules/sales/api/salesApi';
 
 export function useHomeDashboard() {
   const user = getUser();
@@ -24,8 +13,9 @@ export function useHomeDashboard() {
   const [branchId, setBranchId] = useState(user?.branchId ? String(user.branchId) : '');
   const [branches, setBranches] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [purchaseOrders, setPurchaseOrders] = useState([]);
-  const [sales, setSales] = useState([]);
+  const [items, setItems] = useState([]);
+  const [purchaseOrdersKpi, setPurchaseOrdersKpi] = useState(null);
+  const [salesKpi, setSalesKpi] = useState(null);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -58,16 +48,20 @@ export function useHomeDashboard() {
     // allSettled, no all: cada tarjeta se apaga sola si su módulo falla (por
     // ejemplo, un rol sin acceso a Ventas todavía) en vez de tumbar el resto
     // del panel — el Home es un resumen, no una pantalla que dependa de que
-    // los tres módulos respondan siempre.
-    const [alertsResult, ordersResult, salesResult] = await Promise.allSettled([
+    // los tres módulos respondan siempre. Se piden los KPI agregados (no la
+    // lista completa) — mismo endpoint que ya usan las pantallas de
+    // Ventas/Compras para sus propias tarjetas de encabezado.
+    const [alertsResult, itemsResult, ordersKpiResult, salesKpiResult] = await Promise.allSettled([
       getAlerts(currentBranchId),
-      getPurchaseOrders(currentBranchId),
-      getSales(currentBranchId),
+      getInventoryByBranch(currentBranchId),
+      getPurchaseOrdersKpiSummary(currentBranchId),
+      getSalesKpiSummary(currentBranchId),
     ]);
 
     setAlerts(alertsResult.status === 'fulfilled' ? alertsResult.value : []);
-    setPurchaseOrders(ordersResult.status === 'fulfilled' ? ordersResult.value : []);
-    setSales(salesResult.status === 'fulfilled' ? salesResult.value : []);
+    setItems(itemsResult.status === 'fulfilled' ? itemsResult.value : []);
+    setPurchaseOrdersKpi(ordersKpiResult.status === 'fulfilled' ? ordersKpiResult.value : null);
+    setSalesKpi(salesKpiResult.status === 'fulfilled' ? salesKpiResult.value : null);
     setLoading(false);
   }
 
@@ -75,40 +69,38 @@ export function useHomeDashboard() {
     load();
   }, [branchId]);
 
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-
-  const pendingAlerts = alerts.filter((a) => a.status === 'pending');
-  const activePurchaseOrders = purchaseOrders.filter(
-    (o) => !['fully_received', 'cancelled'].includes(o.status)
-  );
-
-  const monthSales = sales.filter((s) => isSameMonth(s.saleDate, now));
-  const salesToday = sales.filter((s) => s.saleDate.slice(0, 10) === today);
-  const monthTotal = monthSales.reduce((sum, s) => sum + s.total, 0);
-  const unitsToday = salesToday.reduce(
-    (sum, s) => sum + s.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
-    0
-  );
-
-  const quantityByProduct = {};
-  monthSales.forEach((sale) => {
-    sale.items.forEach((item) => {
-      quantityByProduct[item.productName] = (quantityByProduct[item.productName] || 0) + item.quantity;
+  // Las alertas guardan quantityAtTrigger/thresholdValue como una FOTO del
+  // momento en que se dispararon (columna de auditoría) — si el stock siguió
+  // bajando después (ej. otra venta) sin que la alerta se resolviera y
+  // volviera a disparar, esos valores quedan desactualizados. Se cruza cada
+  // alerta con su InventoryItemDto real (currentQuantity/minimumStock) para
+  // mostrar y clasificar (stockStatus, mismo semáforo que useInventory.js)
+  // el stock vigente, no el de cuando se creó la alerta.
+  const pendingAlerts = alerts
+    .filter((a) => a.status === 'pending')
+    .map((a) => {
+      const item = items.find((i) => i.productId === a.productId);
+      const currentQuantity = item ? item.currentQuantity : a.quantityAtTrigger;
+      const liveThreshold = a.alertType === 'low_stock' ? item?.minimumStock : item?.maximumStock;
+      const minimumStock = liveThreshold ?? a.thresholdValue;
+      const status = item ? stockStatus(item) : null;
+      return {
+        ...a,
+        currentQuantity,
+        minimumStock,
+        severity: status === 'critico' ? 'critico' : 'bajo',
+      };
     });
-  });
-  const topProductEntry = Object.entries(quantityByProduct).sort((a, b) => b[1] - a[1])[0];
-
   return {
     loading,
     branches,
     branchId,
-    pendingAlerts: pendingAlerts.map((a) => ({ ...a, severity: alertSeverity(a) })),
-    activeOrdersCount: activePurchaseOrders.length,
-    monthTotal,
-    monthSalesCount: monthSales.length,
-    unitsToday,
-    topProductName: topProductEntry ? topProductEntry[0] : null,
-    topProductQuantity: topProductEntry ? topProductEntry[1] : 0,
+    pendingAlerts,
+    activeOrdersCount: purchaseOrdersKpi?.activeOrders ?? 0,
+    monthTotal: salesKpi?.monthTotal ?? 0,
+    monthSalesCount: salesKpi?.salesThisMonth ?? 0,
+    unitsToday: salesKpi?.unitsToday ?? 0,
+    topProductName: salesKpi?.topProductName ?? null,
+    topProductQuantity: salesKpi?.topProductUnits ?? 0,
   };
 }
