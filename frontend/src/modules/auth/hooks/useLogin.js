@@ -8,8 +8,13 @@ export function useLogin() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  function toggleShowPassword() {
+    setShowPassword((prev) => !prev);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -31,5 +36,10 @@ export function useLogin() {
     }
   }
 
-  return { email, setEmail, password, setPassword, loading, error, handleSubmit };
+  return {
+    email, setEmail,
+    password, setPassword,
+    showPassword, toggleShowPassword,
+    loading, error, handleSubmit,
+  };
 }
