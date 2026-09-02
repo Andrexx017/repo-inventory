@@ -3,6 +3,7 @@ import {
   useInventory,
   INCOMING_TYPES,
   OUTGOING_TYPES,
+  STOCK_STATUS_OPTIONS,
   isIncomingMovement,
   movementTypeLabel,
   stockStatus,
@@ -53,9 +54,13 @@ function formatDateTime(value) {
 
 export default function Inventory() {
   const {
-    branches, products, branchId, setBranchId, isGeneralAdmin, canMutate,
-    items, movements, alerts, loading, error,
+    branches, products, categories, branchId, setBranchId, isGeneralAdmin, canMutate, canRegisterMovement,
+    items, pagedItems, itemsPage, setItemsPage, itemsTotalCount, itemsTotalPages,
+    itemSearch, setItemSearch, itemCategoryFilter, setItemCategoryFilter, itemStatusFilter, setItemStatusFilter,
+    movements, alerts, loading, error,
     tab, setTab, movementFilterProductId, setMovementFilterProductId,
+    movementFilterFrom, setMovementFilterFrom, movementFilterTo, setMovementFilterTo,
+    movementsPage, setMovementsPage, movementsTotalPages,
     direction, handleDirectionChange,
     productId, setProductId,
     movementType, setMovementType,
@@ -170,18 +175,65 @@ export default function Inventory() {
 
           {tab === 'existencias' && (
             <>
-              {canMutate ? (
+              {canRegisterMovement ? (
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button type="button" className="btn-primary" onClick={openMovementModal}>
                     <PlusIcon />
                     Registrar movimiento
                   </button>
                 </div>
+              ) : canMutate ? (
+                <p className="inv-readonly-note">
+                  Tu rol no registra movimientos de inventario directamente — es responsabilidad del Operador de inventario (o del Admin general).
+                </p>
               ) : (
                 <p className="inv-readonly-note">
                   Estás viendo el inventario de otra sucursal en modo solo lectura. Para registrar movimientos, cambiá a tu propia sucursal.
                 </p>
               )}
+
+              <div className="filter-row">
+                <div className="field" style={{ margin: 0, flex: '0 0 240px' }}>
+                  <label htmlFor="inv-item-search">Buscar producto</label>
+                  <input
+                    id="inv-item-search"
+                    type="text"
+                    placeholder="SKU o nombre"
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
+                  />
+                </div>
+                <div className="field" style={{ margin: 0, flex: '0 0 220px' }}>
+                  <label htmlFor="inv-item-category">Categoría</label>
+                  <select
+                    id="inv-item-category"
+                    style={{ width: '100%' }}
+                    value={itemCategoryFilter}
+                    onChange={(e) => setItemCategoryFilter(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
+                  <label htmlFor="inv-item-status">Estado</label>
+                  <select
+                    id="inv-item-status"
+                    style={{ width: '100%' }}
+                    value={itemStatusFilter}
+                    onChange={(e) => setItemStatusFilter(e.target.value)}
+                  >
+                    {STOCK_STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <span className="inv-filter-hint">
+                  {itemsTotalCount} producto{itemsTotalCount === 1 ? '' : 's'} en esta sucursal
+                </span>
+              </div>
 
               {thresholdEditingItem && canMutate && (
                 <form onSubmit={handleSubmitThreshold} className="form-card">
@@ -231,11 +283,12 @@ export default function Inventory() {
                       <th>MÍNIMO</th>
                       <th>COSTO PROM.</th>
                       <th>ESTADO</th>
+                      <th>ACTUALIZADO</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((item) => {
+                    {pagedItems.map((item) => {
                       const status = stockStatus(item);
                       return (
                         <tr key={item.id}>
@@ -249,6 +302,7 @@ export default function Inventory() {
                           <td>
                             <span className={`status-pill ${STATUS_CLASSES[status]}`}>{STATUS_LABELS[status]}</span>
                           </td>
+                          <td className="mono text-muted">{formatDateTime(item.updatedAt)}</td>
                           <td>
                             {canMutate && (
                               <button type="button" className="table-action" onClick={() => handleEditThreshold(item)}>
@@ -259,8 +313,36 @@ export default function Inventory() {
                         </tr>
                       );
                     })}
+
+                    {pagedItems.length === 0 && (
+                      <tr>
+                        <td colSpan={10} className="text-muted" style={{ textAlign: 'center', padding: '24px' }}>
+                          Ningún producto coincide con los filtros aplicados.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="inv-pagination">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={itemsPage <= 1}
+                  onClick={() => setItemsPage((p) => p - 1)}
+                >
+                  Anterior
+                </button>
+                <span className="mono text-muted">Página {itemsPage} de {itemsTotalPages}</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={itemsPage >= itemsTotalPages}
+                  onClick={() => setItemsPage((p) => p + 1)}
+                >
+                  Siguiente
+                </button>
               </div>
             </>
           )}
@@ -280,6 +362,26 @@ export default function Inventory() {
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
+                </div>
+                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
+                  <label htmlFor="mv-filter-from">Desde</label>
+                  <input
+                    id="mv-filter-from"
+                    type="date"
+                    value={movementFilterFrom}
+                    max={movementFilterTo || undefined}
+                    onChange={(e) => setMovementFilterFrom(e.target.value)}
+                  />
+                </div>
+                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
+                  <label htmlFor="mv-filter-to">Hasta</label>
+                  <input
+                    id="mv-filter-to"
+                    type="date"
+                    value={movementFilterTo}
+                    min={movementFilterFrom || undefined}
+                    onChange={(e) => setMovementFilterTo(e.target.value)}
+                  />
                 </div>
                 <span className="inv-filter-hint">Trazabilidad completa — RF-11</span>
               </div>
@@ -320,6 +422,26 @@ export default function Inventory() {
                     })}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="inv-pagination">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={movementsPage <= 1}
+                  onClick={() => setMovementsPage((p) => p - 1)}
+                >
+                  Anterior
+                </button>
+                <span className="mono text-muted">Página {movementsPage} de {movementsTotalPages}</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={movementsPage >= movementsTotalPages}
+                  onClick={() => setMovementsPage((p) => p + 1)}
+                >
+                  Siguiente
+                </button>
               </div>
             </>
           )}

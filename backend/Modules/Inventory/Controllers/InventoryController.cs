@@ -1,5 +1,7 @@
+using Inventory.Modules.Auth;
 using Inventory.Modules.Inventory.Dtos;
 using Inventory.Modules.Inventory.Services;
+using Inventory.Shared.Dtos;
 using Inventory.Shared.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,7 +26,20 @@ public class InventoryController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<InventoryItemDto>>> GetByBranch(long branchId) =>
         Ok(await _inventoryService.GetByBranchAsync(branchId));
 
+    // Para la pantalla de Existencias — paginado y filtrable (búsqueda por
+    // SKU/nombre, categoría, estado de stock ok/bajo/critico). GetByBranch
+    // (arriba) sigue sin paginar porque la campana y el Home lo usan para
+    // cruzar alertas por productId, no solo para pintar una tabla.
+    [HttpGet("{branchId:long}/paged")]
+    public async Task<ActionResult<PagedResult<InventoryItemDto>>> GetPagedByBranch(
+        long branchId, [FromQuery] string? search, [FromQuery] long? categoryId, [FromQuery] string? status,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25) =>
+        Ok(await _inventoryService.GetPagedByBranchAsync(branchId, search, categoryId, status, page, pageSize));
+
+    // UC14 del diagrama de casos de uso: registrar ingreso es exclusivo de
+    // Operador de inventario (+ Admin, RF-04) — el Gerente no lo tiene.
     [HttpPost("{branchId:long}/movements")]
+    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.InventoryOperator)]
     public async Task<ActionResult<InventoryMovementDto>> RegisterIncoming(
         long branchId, CreateInventoryMovementDto request)
     {
@@ -38,7 +53,10 @@ public class InventoryController : ControllerBase
         return Ok(movement);
     }
 
+    // UC15 del diagrama de casos de uso: registrar retiro, mismo criterio que
+    // RegisterIncoming (Operador + Admin, sin Gerente).
     [HttpPost("{branchId:long}/movements/outgoing")]
+    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.InventoryOperator)]
     public async Task<ActionResult<InventoryMovementDto>> RegisterOutgoing(
         long branchId, CreateInventoryMovementDto request)
     {
@@ -59,10 +77,15 @@ public class InventoryController : ControllerBase
     // (mismo criterio que RF-06: "consultar inventario de cualquier sucursal, solo lectura").
     // ?productId= es opcional (query string, porque no forma parte de la ruta) para
     // ver la trazabilidad completa de un solo producto en vez de toda la sucursal.
+    // page/pageSize paginan el historial (RF-11 no exige verlo completo de una sola vez,
+    // solo que sea consultable) — defaults cubren el caso más común sin que el cliente
+    // tenga que mandarlos siempre. from/to (opcionales) filtran por rango de fechas
+    // sobre MovementDate.
     [HttpGet("{branchId:long}/movements")]
-    public async Task<ActionResult<IReadOnlyList<InventoryMovementDto>>> GetMovements(
-        long branchId, [FromQuery] long? productId) =>
-        Ok(await _inventoryService.GetMovementsAsync(branchId, productId));
+    public async Task<ActionResult<PagedResult<InventoryMovementDto>>> GetMovements(
+        long branchId, [FromQuery] long? productId, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25) =>
+        Ok(await _inventoryService.GetMovementsAsync(branchId, productId, from, to, page, pageSize));
 
     // RF-09: definir stock mínimo/máximo. Sí exige SameBranch (a diferencia del GET
     // de arriba) porque acá se está escribiendo sobre el inventario de una sucursal

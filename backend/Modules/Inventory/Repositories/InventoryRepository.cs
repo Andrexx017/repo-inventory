@@ -1,5 +1,6 @@
 using Inventory.Infrastructure.Persistence;
 using Inventory.Modules.Inventory.Entities;
+using Inventory.Shared.Dtos;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Modules.Inventory.Repositories;
@@ -19,6 +20,53 @@ public class InventoryRepository : IInventoryRepository
             .Include(i => i.Product).ThenInclude(p => p.BaseUnit)
             .Include(i => i.Product).ThenInclude(p => p.Category)
             .ToListAsync();
+
+    // Para la pantalla de Existencias (paginada, con búsqueda/filtros) — a
+    // diferencia de GetByBranchAsync (arriba), que sigue trayendo TODAS las
+    // existencias de la sucursal sin paginar porque la campana de
+    // notificaciones y el Home la usan para cruzar alertas por productId,
+    // no solo para pintar una tabla (mismo criterio que GetAllAsync en
+    // ProductRepository).
+    // status (ok/bajo/critico) replica en SQL el mismo semáforo que
+    // useInventory.js calcula en el frontend (stockStatus()) — se duplica acá
+    // a propósito para poder filtrar en la base sin traer todo el inventario.
+    public async Task<PagedResult<InventoryItem>> GetPagedByBranchAsync(
+        long branchId, string? search, long? categoryId, string? status, int page, int pageSize)
+    {
+        var query = _db.InventoryItems.Where(i => i.BranchId == branchId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = $"%{search.Trim()}%";
+            query = query.Where(i => EF.Functions.ILike(i.Product.Sku, term) || EF.Functions.ILike(i.Product.Name, term));
+        }
+
+        if (categoryId is not null)
+        {
+            query = query.Where(i => i.Product.CategoryId == categoryId);
+        }
+
+        query = status switch
+        {
+            "critico" => query.Where(i => i.MinimumStock > 0 && i.CurrentQuantity <= i.MinimumStock * 0.5m),
+            "bajo" => query.Where(i => i.MinimumStock > 0
+                && i.CurrentQuantity <= i.MinimumStock && i.CurrentQuantity > i.MinimumStock * 0.5m),
+            "ok" => query.Where(i => i.MinimumStock <= 0 || i.CurrentQuantity > i.MinimumStock),
+            _ => query,
+        };
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .Include(i => i.Product).ThenInclude(p => p.BaseUnit)
+            .Include(i => i.Product).ThenInclude(p => p.Category)
+            .OrderBy(i => i.Product.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResult<InventoryItem>(items, totalCount, page, pageSize);
+    }
 
     public Task<InventoryItem?> GetItemAsync(long branchId, long productId) =>
         _db.InventoryItems
@@ -44,7 +92,8 @@ public class InventoryRepository : IInventoryRepository
     // que es como se quiere ver una bitácora de auditoría. productId es opcional:
     // sin filtro trae todos los movimientos de la sucursal (auditoría general),
     // con filtro trae la trazabilidad de un solo producto.
-    public async Task<IReadOnlyList<InventoryMovement>> GetMovementsByBranchAsync(long branchId, long? productId)
+    public async Task<PagedResult<InventoryMovement>> GetMovementsByBranchAsync(
+        long branchId, long? productId, DateTimeOffset? from, DateTimeOffset? to, int page, int pageSize)
     {
         var query = _db.InventoryMovements
             .Where(m => m.BranchId == branchId)
@@ -58,7 +107,25 @@ public class InventoryRepository : IInventoryRepository
             query = query.Where(m => m.ProductId == productId);
         }
 
-        return await query.OrderByDescending(m => m.MovementDate).ToListAsync();
+        if (from is not null)
+        {
+            query = query.Where(m => m.MovementDate >= from);
+        }
+
+        if (to is not null)
+        {
+            query = query.Where(m => m.MovementDate <= to);
+        }
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(m => m.MovementDate)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResult<InventoryMovement>(items, totalCount, page, pageSize);
     }
 
     // RF-09: busca una alerta ya disparada y todavía sin resolver para ese

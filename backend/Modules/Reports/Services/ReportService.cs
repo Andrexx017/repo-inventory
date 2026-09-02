@@ -79,9 +79,8 @@ public class ReportService : IReportService
     private async Task<ReportTable> BuildInventoryMovementsTableAsync(
         string branchName, long branchId, DateTimeOffset from, DateTimeOffset to)
     {
-        var movements = (await _inventoryService.GetMovementsAsync(branchId, productId: null))
-            .Where(m => m.MovementDate >= from && m.MovementDate <= to)
-            .ToList();
+        var movements = (await _inventoryService.GetMovementsAsync(branchId, productId: null, from, to, page: 1, pageSize: int.MaxValue))
+            .Items;
 
         string[] columns = ["Fecha", "SKU", "Producto", "Tipo", "Cantidad", "Motivo", "Responsable"];
 

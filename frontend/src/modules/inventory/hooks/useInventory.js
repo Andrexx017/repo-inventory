@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getUser } from '../../../shared/apiClient';
 import { getBranches } from '../../auth/api/branchesApi';
-import { getProducts } from '../../catalog/api/productsApi';
+import { getProducts, getProductCategories } from '../../catalog/api/productsApi';
+import { startOfDayIso, endOfDayIso } from '../../../shared/dateRange';
 import {
   getInventoryByBranch,
+  getInventoryPaged,
   getMovements,
   registerIncoming,
   registerOutgoing,
@@ -30,6 +32,17 @@ const MOVEMENT_TYPE_LABELS = Object.fromEntries(
 );
 
 const INCOMING_VALUES = new Set(INCOMING_TYPES.map((type) => type.value));
+
+const MOVEMENTS_PAGE_SIZE = 25;
+const ITEMS_PAGE_SIZE = 25;
+const SEARCH_DEBOUNCE_MS = 300;
+
+export const STOCK_STATUS_OPTIONS = [
+  { value: '', label: 'Todos' },
+  { value: 'critico', label: 'Crítico' },
+  { value: 'bajo', label: 'Bajo' },
+  { value: 'ok', label: 'OK' },
+];
 
 export function isIncomingMovement(movementType) {
   return INCOMING_VALUES.has(movementType);
@@ -57,6 +70,7 @@ function todayInputValue() {
 export function useInventory() {
   const user = getUser();
   const isGeneralAdmin = user?.role === 'general_admin';
+  const isInventoryOperator = user?.role === 'inventory_operator';
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -72,14 +86,25 @@ export function useInventory() {
   });
 
   const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [pagedItems, setPagedItems] = useState([]);
+  const [itemsPage, setItemsPage] = useState(1);
+  const [itemsTotalCount, setItemsTotalCount] = useState(0);
   const [movements, setMovements] = useState([]);
+  const [movementsPage, setMovementsPage] = useState(1);
+  const [movementsTotalCount, setMovementsTotalCount] = useState(0);
   const [alerts, setAlerts] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [tab, setTab] = useState('existencias');
+  const [itemSearch, setItemSearch] = useState('');
+  const [itemCategoryFilter, setItemCategoryFilter] = useState('');
+  const [itemStatusFilter, setItemStatusFilter] = useState('');
   const [movementFilterProductId, setMovementFilterProductId] = useState('');
+  const [movementFilterFrom, setMovementFilterFrom] = useState('');
+  const [movementFilterTo, setMovementFilterTo] = useState('');
 
   const [direction, setDirection] = useState('ingreso');
   const [productId, setProductId] = useState('');
@@ -101,11 +126,51 @@ export function useInventory() {
 
   const canMutate = isGeneralAdmin || (!!branchId && String(user?.branchId) === String(branchId));
 
+  // UC14/UC15 del diagrama de casos de uso: registrar ingreso/retiro es
+  // exclusivo de Operador (+Admin) — a diferencia de canMutate (umbrales,
+  // resolución de alertas), que sí las puede tocar cualquier rol de su propia
+  // sucursal, fuera del alcance de este diagrama.
+  const canRegisterMovement = isGeneralAdmin || (isInventoryOperator && canMutate);
+
+  // Filtros de Existencias "debounced" — mismo mecanismo que useProducts.js:
+  // esperan a que el usuario deje de tocarlos antes de pegarle al backend.
+  const [debouncedItemFilters, setDebouncedItemFilters] = useState({
+    search: itemSearch, categoryId: '', status: '',
+  });
+  const isFirstItemFilterRun = useRef(true);
+
+  useEffect(() => {
+    if (isFirstItemFilterRun.current) {
+      isFirstItemFilterRun.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setDebouncedItemFilters({
+        search: itemSearch,
+        categoryId: itemCategoryFilter,
+        status: itemStatusFilter,
+      });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [itemSearch, itemCategoryFilter, itemStatusFilter]);
+
+  // Volver a la página 1 cuando cambia algún filtro — evita quedar en una
+  // página que ya no existe para el nuevo filtro.
+  useEffect(() => {
+    setItemsPage(1);
+  }, [debouncedItemFilters]);
+
   async function loadReferenceData() {
     try {
-      const [branchesData, productsData] = await Promise.all([getBranches(), getProducts()]);
+      const [branchesData, productsData, categoriesData] = await Promise.all([
+        getBranches(),
+        getProducts(),
+        getProductCategories(),
+      ]);
       setBranches(branchesData);
       setProducts(productsData);
+      setCategories(categoriesData);
 
       if (!branchId && branchesData.length > 0) {
         setBranchId(String(branchesData[0].id));
@@ -120,18 +185,59 @@ export function useInventory() {
 
     setLoading(true);
     try {
-      const [itemsData, movementsData, alertsData] = await Promise.all([
+      const [itemsData, alertsData] = await Promise.all([
         getInventoryByBranch(branchId),
-        getMovements(branchId),
         getAlerts(branchId),
       ]);
       setItems(itemsData);
-      setMovements(movementsData);
       setAlerts(alertsData);
     } catch (err) {
       setError(err.message || 'No se pudo cargar el inventario de la sucursal.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Existencias paginadas y filtrables (búsqueda/categoría/estado) — separado
+  // de loadInventoryData, que sigue trayendo el inventario COMPLETO de la
+  // sucursal sin paginar (lo necesitan las tarjetas de KPI de acá abajo, y la
+  // campana/Home para cruzar alertas por productId).
+  async function loadPagedItems() {
+    if (!branchId) return;
+
+    try {
+      const page = await getInventoryPaged(branchId, {
+        search: debouncedItemFilters.search || undefined,
+        categoryId: debouncedItemFilters.categoryId || undefined,
+        status: debouncedItemFilters.status || undefined,
+        page: itemsPage,
+        pageSize: ITEMS_PAGE_SIZE,
+      });
+      setPagedItems(page.items);
+      setItemsTotalCount(page.totalCount);
+    } catch (err) {
+      setError(err.message || 'No se pudieron cargar las existencias.');
+    }
+  }
+
+  // RF-11: historial paginado server-side (ver inventoryApi.getMovements) — separado
+  // de loadInventoryData porque cambia de página o de filtro sin que haya que
+  // recargar existencias/alertas.
+  async function loadMovements() {
+    if (!branchId) return;
+
+    try {
+      const page = await getMovements(branchId, {
+        productId: movementFilterProductId || undefined,
+        from: movementFilterFrom ? startOfDayIso(movementFilterFrom) : undefined,
+        to: movementFilterTo ? endOfDayIso(movementFilterTo) : undefined,
+        page: movementsPage,
+        pageSize: MOVEMENTS_PAGE_SIZE,
+      });
+      setMovements(page.items);
+      setMovementsTotalCount(page.totalCount);
+    } catch (err) {
+      setError(err.message || 'No se pudo cargar el historial de movimientos.');
     }
   }
 
@@ -142,6 +248,22 @@ export function useInventory() {
   useEffect(() => {
     loadInventoryData();
   }, [branchId]);
+
+  useEffect(() => {
+    loadPagedItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId, debouncedItemFilters, itemsPage]);
+
+  useEffect(() => {
+    loadMovements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId, movementFilterProductId, movementFilterFrom, movementFilterTo, movementsPage]);
+
+  // Volver a la página 1 cuando cambia el filtro de producto o de fechas —
+  // evita quedar en una página que ya no existe para el nuevo filtro.
+  useEffect(() => {
+    setMovementsPage(1);
+  }, [movementFilterProductId, movementFilterFrom, movementFilterTo]);
 
   // Preselecciona el producto de la alerta que trajo al usuario acá (ver
   // goToInventoryForRestock en useDashboard.js) y limpia el state de navegación
@@ -209,6 +331,12 @@ export function useInventory() {
 
       closeMovementModal();
       await loadInventoryData();
+      await loadPagedItems();
+      if (movementsPage === 1) {
+        await loadMovements();
+      } else {
+        setMovementsPage(1);
+      }
     } catch (err) {
       setFormError(err.message || 'No se pudo registrar el movimiento.');
     }
@@ -238,6 +366,7 @@ export function useInventory() {
 
       setThresholdEditingItem(null);
       await loadInventoryData();
+      await loadPagedItems();
     } catch (err) {
       setThresholdError(err.message || 'No se pudo actualizar el umbral.');
     }
@@ -257,20 +386,32 @@ export function useInventory() {
     }
   }
 
-  const filteredMovements = movementFilterProductId
-    ? movements.filter((m) => String(m.productId) === movementFilterProductId)
-    : movements;
+  const movementsTotalPages = Math.max(1, Math.ceil(movementsTotalCount / MOVEMENTS_PAGE_SIZE));
+  const itemsTotalPages = Math.max(1, Math.ceil(itemsTotalCount / ITEMS_PAGE_SIZE));
 
   return {
     branches,
     products,
+    categories,
     branchId,
     setBranchId,
     isGeneralAdmin,
     canMutate,
+    canRegisterMovement,
 
     items,
-    movements: filteredMovements,
+    pagedItems,
+    itemsPage,
+    setItemsPage,
+    itemsTotalCount,
+    itemsTotalPages,
+    itemSearch,
+    setItemSearch,
+    itemCategoryFilter,
+    setItemCategoryFilter,
+    itemStatusFilter,
+    setItemStatusFilter,
+    movements,
     alerts,
     loading,
     error,
@@ -279,6 +420,13 @@ export function useInventory() {
     setTab,
     movementFilterProductId,
     setMovementFilterProductId,
+    movementFilterFrom,
+    setMovementFilterFrom,
+    movementFilterTo,
+    setMovementFilterTo,
+    movementsPage,
+    setMovementsPage,
+    movementsTotalPages,
 
     direction,
     handleDirectionChange,

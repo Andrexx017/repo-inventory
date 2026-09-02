@@ -1,5 +1,6 @@
 using Inventory.Modules.Inventory.Dtos;
 using Inventory.Modules.Inventory.Entities;
+using Inventory.Shared.Dtos;
 
 namespace Inventory.Modules.Inventory.Services;
 
@@ -14,14 +15,23 @@ public interface IInventoryService
     Task CheckStockAlertsAsync(InventoryItem item, long actingUserId);
 
     Task<IReadOnlyList<InventoryItemDto>> GetByBranchAsync(long branchId);
+
+    // Paginada y filtrable (búsqueda, categoría, estado ok/bajo/critico) —
+    // ver comentario en GetPagedByBranchAsync del repositorio.
+    Task<PagedResult<InventoryItemDto>> GetPagedByBranchAsync(
+        long branchId, string? search, long? categoryId, string? status, int page, int pageSize);
+
     Task<InventoryMovementDto> RegisterIncomingMovementAsync(
         long branchId, CreateInventoryMovementDto request, long responsibleUserId);
     // RF-08: retiro de producto (venta, merma, ajuste) — resta stock en vez de sumarlo
     Task<InventoryMovementDto> RegisterOutgoingMovementAsync(
         long branchId, CreateInventoryMovementDto request, long responsibleUserId);
 
-    // RF-11: historial de movimientos de una sucursal, opcionalmente filtrado por producto.
-    Task<IReadOnlyList<InventoryMovementDto>> GetMovementsAsync(long branchId, long? productId);
+    // RF-11: historial de movimientos de una sucursal, opcionalmente filtrado por
+    // producto y por rango de fechas (from/to), y paginado (page/pageSize) para
+    // no traer el historial completo.
+    Task<PagedResult<InventoryMovementDto>> GetMovementsAsync(
+        long branchId, long? productId, DateTimeOffset? from, DateTimeOffset? to, int page, int pageSize);
 
     // RF-09: define/actualiza el stock mínimo (y máximo opcional) de un producto en
     // una sucursal. Get-or-create: se puede fijar el umbral antes de que exista

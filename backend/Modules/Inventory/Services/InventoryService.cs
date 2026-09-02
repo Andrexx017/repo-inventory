@@ -5,6 +5,7 @@ using Inventory.Modules.Catalog.Repositories;
 using Inventory.Modules.Inventory.Dtos;
 using Inventory.Modules.Inventory.Entities;
 using Inventory.Modules.Inventory.Repositories;
+using Inventory.Shared.Dtos;
 using Inventory.Shared.Exceptions;
 
 namespace Inventory.Modules.Inventory.Services;
@@ -41,6 +42,14 @@ public class InventoryService : IInventoryService
     {
         var items = await _inventory.GetByBranchAsync(branchId);
         return items.Select(ToDto).ToList();
+    }
+
+    public async Task<PagedResult<InventoryItemDto>> GetPagedByBranchAsync(
+        long branchId, string? search, long? categoryId, string? status, int page, int pageSize)
+    {
+        var result = await _inventory.GetPagedByBranchAsync(branchId, search, categoryId, status, page, pageSize);
+        var items = result.Items.Select(ToDto).ToList();
+        return new PagedResult<InventoryItemDto>(items, result.TotalCount, result.Page, result.PageSize);
     }
 
     public async Task<InventoryMovementDto> RegisterIncomingMovementAsync(
@@ -177,12 +186,14 @@ public class InventoryService : IInventoryService
     // por el repositorio. No hay ningún endpoint de escritura sobre este resultado
     // (ni PUT ni DELETE en el Controller) — la inmutabilidad que pide RF-11 es una
     // propiedad de lo que el módulo NO expone, no de una regla adicional que validar.
-    public async Task<IReadOnlyList<InventoryMovementDto>> GetMovementsAsync(long branchId, long? productId)
+    public async Task<PagedResult<InventoryMovementDto>> GetMovementsAsync(
+        long branchId, long? productId, DateTimeOffset? from, DateTimeOffset? to, int page, int pageSize)
     {
-        var movements = await _inventory.GetMovementsByBranchAsync(branchId, productId);
-        return movements
+        var result = await _inventory.GetMovementsByBranchAsync(branchId, productId, from, to, page, pageSize);
+        var items = result.Items
             .Select(m => ToMovementDto(m, m.Branch, m.Product, m.ResponsibleUser.Name))
             .ToList();
+        return new PagedResult<InventoryMovementDto>(items, result.TotalCount, result.Page, result.PageSize);
     }
 
     public async Task<InventoryItemDto> SetThresholdsAsync(
