@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getUser } from '../../../shared/apiClient';
 import { getBranches } from '../../auth/api/branchesApi';
+import { startOfDayIso, endOfDayIso, todayInputValue } from '../../../shared/dateRange';
 import { exportReport } from '../api/reportsApi';
 
 export const REPORT_TYPES = [
@@ -17,22 +18,6 @@ export const REPORT_FORMATS = [
 function firstDayOfMonthInputValue() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-}
-
-function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-// Convierte un <input type="date"> (solo fecha, sin hora) al rango de horas
-// completo del día — si no, "to" a las 00:00:00 dejaría afuera todo lo
-// ocurrido ese mismo día (mismo problema que resuelve movementDate en
-// useInventory, pero acá aplica a los dos extremos del rango).
-function startOfDayIso(dateInputValue) {
-  return new Date(`${dateInputValue}T00:00:00`).toISOString();
-}
-
-function endOfDayIso(dateInputValue) {
-  return new Date(`${dateInputValue}T23:59:59.999`).toISOString();
 }
 
 export function useReports() {
