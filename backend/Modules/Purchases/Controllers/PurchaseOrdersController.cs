@@ -1,6 +1,7 @@
 using Inventory.Modules.Auth;
 using Inventory.Modules.Purchases.Dtos;
 using Inventory.Modules.Purchases.Services;
+using Inventory.Shared.Dtos;
 using Inventory.Shared.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -51,9 +52,13 @@ public class PurchaseOrdersController : ControllerBase
 
     // RF-14: ?supplierId= y ?productId= son opcionales (query string, no forman
     // parte de la ruta), mismo criterio que ?productId= en InventoryController.GetMovements.
+    // from/to filtran por rango de fechas sobre OrderDate. page/pageSize paginan
+    // el historial, igual criterio que GetMovements.
     [HttpGet("{branchId:long}")]
-    public async Task<ActionResult<IReadOnlyList<PurchaseOrderDto>>> GetByBranch(
-        long branchId, [FromQuery] long? supplierId, [FromQuery] long? productId)
+    public async Task<ActionResult<PagedResult<PurchaseOrderDto>>> GetByBranch(
+        long branchId, [FromQuery] long? supplierId, [FromQuery] long? productId,
+        [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
         var authResult = await _authorizationService.AuthorizeAsync(User, branchId, "SameBranch");
         if (!authResult.Succeeded)
@@ -61,7 +66,21 @@ public class PurchaseOrdersController : ControllerBase
             return Forbid();
         }
 
-        return Ok(await _purchaseOrderService.GetByBranchAsync(branchId, supplierId, productId));
+        return Ok(await _purchaseOrderService.GetByBranchAsync(branchId, supplierId, productId, from, to, page, pageSize));
+    }
+
+    // Indicadores del encabezado (activas/pendientes/valor del mes) — separados
+    // de GetByBranch para no perder el beneficio de paginar la lista.
+    [HttpGet("{branchId:long}/kpi-summary")]
+    public async Task<ActionResult<PurchaseOrdersKpiDto>> GetKpiSummary(long branchId)
+    {
+        var authResult = await _authorizationService.AuthorizeAsync(User, branchId, "SameBranch");
+        if (!authResult.Succeeded)
+        {
+            return Forbid();
+        }
+
+        return Ok(await _purchaseOrderService.GetKpiSummaryAsync(branchId));
     }
 
     [HttpGet("{branchId:long}/{id:long}")]

@@ -3,6 +3,7 @@ using Inventory.Modules.Catalog.Repositories;
 using Inventory.Modules.Purchases.Dtos;
 using Inventory.Modules.Purchases.Entities;
 using Inventory.Modules.Purchases.Repositories;
+using Inventory.Shared.Dtos;
 using Inventory.Shared.Exceptions;
 
 namespace Inventory.Modules.Purchases.Services;
@@ -117,10 +118,13 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     // RF-14: histórico filtrable por proveedor y/o producto — ambos parámetros
     // opcionales, se combinan con AND si vienen los dos.
-    public async Task<IReadOnlyList<PurchaseOrderDto>> GetByBranchAsync(long branchId, long? supplierId, long? productId)
+    public async Task<PagedResult<PurchaseOrderDto>> GetByBranchAsync(
+        long branchId, long? supplierId, long? productId, DateTimeOffset? from, DateTimeOffset? to,
+        int page, int pageSize)
     {
-        var orders = await _purchaseOrders.GetByBranchAsync(branchId, supplierId, productId);
-        return orders.Select(ToDto).ToList();
+        var result = await _purchaseOrders.GetByBranchAsync(branchId, supplierId, productId, from, to, page, pageSize);
+        var items = result.Items.Select(ToDto).ToList();
+        return new PagedResult<PurchaseOrderDto>(items, result.TotalCount, result.Page, result.PageSize);
     }
 
     public async Task<PurchaseOrderDto?> GetByIdAsync(long id)
@@ -128,6 +132,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         var order = await _purchaseOrders.GetByIdAsync(id);
         return order is null ? null : ToDto(order);
     }
+
+    public Task<PurchaseOrdersKpiDto> GetKpiSummaryAsync(long branchId) => _purchaseOrders.GetKpiSummaryAsync(branchId);
 
     // UC-09: aprobación del Gerente de sucursal. Solo se puede aprobar una orden
     // recién creada — todavía no existe un estado intermedio "enviada" en este

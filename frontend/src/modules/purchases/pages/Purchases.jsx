@@ -38,8 +38,9 @@ function formatDate(value) {
 export default function Purchases() {
   const {
     branches, branchId, setBranchId, isGeneralAdmin, canManageOrders,
-    suppliers, products, orders, loading, error,
+    suppliers, products, orders, ordersPage, setOrdersPage, ordersTotalPages, ordersKpi, loading, error,
     tab, setTab, supplierFilter, setSupplierFilter,
+    ordersFilterFrom, setOrdersFilterFrom, ordersFilterTo, setOrdersFilterTo,
     supplierId, setSupplierId, paymentTermDays, setPaymentTermDays,
     lines, addLine, removeLine, updateLine, lineAmounts, orderTotals,
     formError, handleCreateOrder,
@@ -49,16 +50,12 @@ export default function Purchases() {
     receiptNotes, setReceiptNotes, receiptError, openReceipt, closeReceipt, handleSubmitReceipt,
   } = usePurchases();
 
-  const now = new Date();
-  const monthValue = orders
-    .filter((o) => {
-      const d = new Date(o.orderDate);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    })
-    .reduce((sum, o) => sum + o.total, 0);
-  const activeOrders = orders.filter((o) => !['fully_received', 'cancelled'].includes(o.status)).length;
-  const pendingApproval = orders.filter((o) => o.status === 'draft').length;
-  const pendingReceipts = orders.filter((o) => ['confirmed', 'partially_received'].includes(o.status)).length;
+  // ordersKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync) —
+  // no se puede calcular desde `orders` porque esa lista ahora está paginada.
+  const monthValue = ordersKpi?.monthValue ?? 0;
+  const activeOrders = ordersKpi?.activeOrders ?? 0;
+  const pendingApproval = ordersKpi?.pendingApproval ?? 0;
+  const pendingReceipts = ordersKpi?.pendingReceipts ?? 0;
 
   return (
     <AppShell title="Compras">
@@ -143,6 +140,26 @@ export default function Purchases() {
                     ))}
                   </select>
                 </div>
+                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
+                  <label htmlFor="po-filter-from">Desde</label>
+                  <input
+                    id="po-filter-from"
+                    type="date"
+                    value={ordersFilterFrom}
+                    max={ordersFilterTo || undefined}
+                    onChange={(e) => setOrdersFilterFrom(e.target.value)}
+                  />
+                </div>
+                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
+                  <label htmlFor="po-filter-to">Hasta</label>
+                  <input
+                    id="po-filter-to"
+                    type="date"
+                    value={ordersFilterTo}
+                    min={ordersFilterFrom || undefined}
+                    onChange={(e) => setOrdersFilterTo(e.target.value)}
+                  />
+                </div>
                 <span className="inv-filter-hint" style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '12.5px' }}>
                   Histórico por proveedor — RF-14
                 </span>
@@ -191,6 +208,26 @@ export default function Purchases() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="inv-pagination">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={ordersPage <= 1}
+                  onClick={() => setOrdersPage((p) => p - 1)}
+                >
+                  Anterior
+                </button>
+                <span className="mono text-muted">Página {ordersPage} de {ordersTotalPages}</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={ordersPage >= ordersTotalPages}
+                  onClick={() => setOrdersPage((p) => p + 1)}
+                >
+                  Siguiente
+                </button>
               </div>
 
               {receiptOrder && (

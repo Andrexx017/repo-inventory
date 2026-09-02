@@ -5,12 +5,16 @@ import { getProducts } from '../../catalog/api/productsApi';
 import { getSuppliers } from '../api/suppliersApi';
 import {
   getPurchaseOrders,
+  getPurchaseOrdersKpiSummary,
   createPurchaseOrder,
   approvePurchaseOrder,
   cancelPurchaseOrder,
   createPurchaseReceipt,
   getPurchaseReceipts,
 } from '../api/purchaseOrdersApi';
+import { startOfDayIso, endOfDayIso } from '../../../shared/dateRange';
+
+const ORDERS_PAGE_SIZE = 25;
 
 // Estados alcanzables desde el backend (PurchaseOrderService) — 'sent' está en
 // el CHECK de la tabla pero el flujo real todavía no lo usa (draft -> confirmed
@@ -48,11 +52,16 @@ export function usePurchases() {
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersTotalCount, setOrdersTotalCount] = useState(0);
+  const [ordersKpi, setOrdersKpi] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [tab, setTab] = useState('ordenes');
   const [supplierFilter, setSupplierFilter] = useState('');
+  const [ordersFilterFrom, setOrdersFilterFrom] = useState('');
+  const [ordersFilterTo, setOrdersFilterTo] = useState('');
 
   const [supplierId, setSupplierId] = useState('');
   const [paymentTermDays, setPaymentTermDays] = useState('');
@@ -93,8 +102,19 @@ export function usePurchases() {
 
     setLoading(true);
     try {
-      const data = await getPurchaseOrders(branchId, supplierFilter || undefined);
-      setOrders(data);
+      const [page, kpi] = await Promise.all([
+        getPurchaseOrders(branchId, {
+          supplierId: supplierFilter || undefined,
+          from: ordersFilterFrom ? startOfDayIso(ordersFilterFrom) : undefined,
+          to: ordersFilterTo ? endOfDayIso(ordersFilterTo) : undefined,
+          page: ordersPage,
+          pageSize: ORDERS_PAGE_SIZE,
+        }),
+        getPurchaseOrdersKpiSummary(branchId),
+      ]);
+      setOrders(page.items);
+      setOrdersTotalCount(page.totalCount);
+      setOrdersKpi(kpi);
     } catch (err) {
       setError(err.message || 'No se pudieron cargar las órdenes de compra.');
     } finally {
@@ -108,7 +128,16 @@ export function usePurchases() {
 
   useEffect(() => {
     loadOrders();
-  }, [branchId, supplierFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId, supplierFilter, ordersFilterFrom, ordersFilterTo, ordersPage]);
+
+  // Volver a la página 1 cuando cambia el filtro de proveedor o de fechas —
+  // evita quedar en una página que ya no existe para el nuevo filtro.
+  useEffect(() => {
+    setOrdersPage(1);
+  }, [supplierFilter, ordersFilterFrom, ordersFilterTo]);
+
+  const ordersTotalPages = Math.max(1, Math.ceil(ordersTotalCount / ORDERS_PAGE_SIZE));
 
   function resetOrderForm() {
     setSupplierId('');
@@ -300,6 +329,14 @@ export function usePurchases() {
     suppliers,
     products,
     orders,
+    ordersPage,
+    setOrdersPage,
+    ordersTotalPages,
+    ordersFilterFrom,
+    setOrdersFilterFrom,
+    ordersFilterTo,
+    setOrdersFilterTo,
+    ordersKpi,
     loading,
     error,
 
