@@ -103,6 +103,11 @@ Table users {
   active         boolean   [not null, default: true]
   created_at     timestamptz [not null, default: `now()`]
 
+  indexes {
+    branch_id
+    role_id
+  }
+
   Note: 'Tabla maestra'
 }
 
@@ -113,6 +118,10 @@ Table password_reset_tokens {
   expires_at  timestamptz [not null]
   used_at     timestamptz
   created_at  timestamptz [not null, default: `now()`]
+
+  indexes {
+    user_id
+  }
 
   Note: 'Detalle — token de un solo uso para recuperación de contraseña por email'
 }
@@ -148,6 +157,11 @@ Table products {
   active           boolean [not null, default: true]
   created_at       timestamptz [not null, default: `now()`]
 
+  indexes {
+    category_id
+    base_unit_id
+  }
+
   Note: 'Tabla maestra'
 }
 
@@ -161,6 +175,7 @@ Table product_units {
 
   indexes {
     (product_id, unit_id) [unique]
+    product_id
   }
 
   Note: 'Tabla de detalle de products'
@@ -182,6 +197,8 @@ Table inventory {
 
   indexes {
     (branch_id, product_id) [unique]
+    product_id
+    branch_id [note: 'Parcial: WHERE current_quantity <= minimum_stock — detección de stock bajo (dashboard 3.6)']
   }
 
   Note: 'Tabla maestra (estado actual, no histórico); costo promedio ponderado recalculado por el backend en cada ingreso con costo'
@@ -202,6 +219,8 @@ Table stock_alerts {
 
   indexes {
     (branch_id, product_id, alert_type) [unique, note: 'Parcial: solo WHERE status = pending — evita alertas abiertas duplicadas']
+    (branch_id, status)
+    product_id
   }
 
   Note: 'Tabla de detalle de inventory — funcionalidad adicional (sección 4): alertas inteligentes de stock. CHECK: resolved_by/resolved_at obligatorios cuando status = resolved'
@@ -220,6 +239,13 @@ Table inventory_movements {
   reference_id          bigint         [note: 'Referencia polimórfica — sin FK física, la tabla varía según reference_type']
   movement_date         timestamptz    [not null, default: `now()`]
   created_at            timestamptz    [not null, default: `now()`]
+
+  indexes {
+    (branch_id, product_id)
+    movement_date
+    responsible_user_id
+    (reference_type, reference_id)
+  }
 
   Note: 'Tabla de detalle (bitácora); trazabilidad obligatoria: fecha, responsable, motivo y cantidad de cada ingreso/retiro'
 }
@@ -256,6 +282,12 @@ Table purchase_orders {
   created_by         bigint                 [not null, ref: > users.id]
   created_at         timestamptz            [not null, default: `now()`]
 
+  indexes {
+    supplier_id
+    branch_id
+    status
+  }
+
   Note: 'Tabla de cabecera'
 }
 
@@ -268,6 +300,11 @@ Table purchase_order_items {
   discount_pct        numeric [not null, default: 0]
   subtotal            numeric [note: 'Columna generada: quantity * unit_price * (1 - discount_pct/100)']
 
+  indexes {
+    purchase_order_id
+    product_id
+  }
+
   Note: 'Tabla de detalle de purchase_orders'
 }
 
@@ -279,6 +316,10 @@ Table purchase_receipts {
   is_complete        boolean     [not null, default: false]
   notes              text
 
+  indexes {
+    purchase_order_id
+  }
+
   Note: 'Tabla de cabecera'
 }
 
@@ -287,6 +328,11 @@ Table purchase_receipt_items {
   receipt_id               bigint  [not null, ref: > purchase_receipts.id]
   purchase_order_item_id   bigint  [not null, ref: > purchase_order_items.id]
   received_quantity        numeric [not null]
+
+  indexes {
+    receipt_id
+    purchase_order_item_id
+  }
 
   Note: 'Tabla de detalle de purchase_receipts'
 }
@@ -303,7 +349,7 @@ Table price_lists {
   start_date  date
   end_date    date
 
-  Note: 'Tabla maestra'
+  Note: 'Tabla maestra; CHECK end_date >= start_date cuando ambas fechas están definidas'
 }
 
 Table price_list_items {
@@ -314,6 +360,7 @@ Table price_list_items {
 
   indexes {
     (price_list_id, product_id) [unique]
+    product_id
   }
 
   Note: 'Tabla de detalle de price_lists'
@@ -333,6 +380,12 @@ Table sales {
   status          sale_status [not null, default: 'confirmed']
   created_at      timestamptz [not null, default: `now()`]
 
+  indexes {
+    (branch_id, sale_date)
+    seller_id
+    status
+  }
+
   Note: 'Tabla de cabecera'
 }
 
@@ -344,6 +397,11 @@ Table sale_items {
   unit_price     numeric [not null]
   discount_pct   numeric [not null, default: 0]
   subtotal       numeric [note: 'Columna generada: quantity * unit_price * (1 - discount_pct/100)']
+
+  indexes {
+    sale_id
+    product_id
+  }
 
   Note: 'Tabla de detalle de sales'
 }
@@ -370,7 +428,14 @@ Table transfers {
   actual_arrival_date      timestamptz
   created_at               timestamptz       [not null, default: `now()`]
 
-  Note: 'Tabla de cabecera; flujo de 5 pasos: solicitud → preparación → envío → recepción completa/parcial (sección 3.4)'
+  indexes {
+    origin_branch_id
+    destination_branch_id
+    status
+    request_date
+  }
+
+  Note: 'Tabla de cabecera; flujo de 5 pasos: solicitud → preparación → envío → recepción completa/parcial (sección 3.4). CHECK origin_branch_id <> destination_branch_id'
 }
 
 Table transfer_items {
@@ -382,6 +447,11 @@ Table transfer_items {
   received_quantity     numeric [not null, default: 0]
   difference            numeric [note: 'Columna generada: shipped_quantity - received_quantity (faltante si > 0)']
 
+  indexes {
+    transfer_id
+    product_id
+  }
+
   Note: 'Tabla de detalle de transfers'
 }
 
@@ -392,6 +462,11 @@ Table transfer_events {
   event_date     timestamptz     [not null, default: `now()`]
   notes          text
   recorded_by    bigint          [not null, ref: > users.id]
+
+  indexes {
+    transfer_id
+    event_date
+  }
 
   Note: 'Tabla de detalle de transfers; historial de estados — soporta seguimiento de tiempos estimados vs. reales (sección 3.5)'
 }
