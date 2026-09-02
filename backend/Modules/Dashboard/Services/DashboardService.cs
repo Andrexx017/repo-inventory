@@ -69,7 +69,7 @@ public class DashboardService : IDashboardService
             ?? throw new DomainException($"La sucursal {branchId} no existe.");
 
         var inventoryItems = await _inventoryService.GetByBranchAsync(branchId);
-        var sales = await _saleService.GetByBranchAsync(branchId);
+        var sales = (await _saleService.GetByBranchAsync(branchId, from: null, to: null, page: 1, pageSize: int.MaxValue)).Items;
 
         var periodStart = DateTimeOffset.UtcNow.AddDays(-RotationPeriodDays);
         var soldQuantityByProduct = sales
@@ -167,7 +167,7 @@ public class DashboardService : IDashboardService
 
     private async Task<List<MonthlySalesDto>> BuildMonthlyHistoryAsync(long branchId)
     {
-        var sales = await _saleService.GetByBranchAsync(branchId);
+        var sales = (await _saleService.GetByBranchAsync(branchId, from: null, to: null, page: 1, pageSize: int.MaxValue)).Items;
         // Ventas anuladas no representan volumen real vendido.
         var confirmedSales = sales.Where(s => s.Status == "confirmed").ToList();
 

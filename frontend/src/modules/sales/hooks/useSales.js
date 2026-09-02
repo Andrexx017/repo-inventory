@@ -3,7 +3,10 @@ import { getUser } from '../../../shared/apiClient';
 import { getBranches } from '../../auth/api/branchesApi';
 import { getProducts } from '../../catalog/api/productsApi';
 import { getPriceLists, getPriceListItems, setPriceListItemPrice, removePriceListItem } from '../api/priceListsApi';
-import { getSales, createSale } from '../api/salesApi';
+import { getSales, getSalesKpiSummary, createSale } from '../api/salesApi';
+import { startOfDayIso, endOfDayIso } from '../../../shared/dateRange';
+
+const SALES_PAGE_SIZE = 25;
 
 function emptyLine() {
   return { productId: '', quantity: '', discountPct: '0' };
@@ -24,10 +27,15 @@ export function useSales() {
   const [products, setProducts] = useState([]);
   const [priceLists, setPriceLists] = useState([]);
   const [sales, setSales] = useState([]);
+  const [salesPage, setSalesPage] = useState(1);
+  const [salesTotalCount, setSalesTotalCount] = useState(0);
+  const [salesKpi, setSalesKpi] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [tab, setTab] = useState('ventas');
+  const [salesFilterFrom, setSalesFilterFrom] = useState('');
+  const [salesFilterTo, setSalesFilterTo] = useState('');
 
   const [priceListId, setPriceListId] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -71,8 +79,18 @@ export function useSales() {
 
     setLoading(true);
     try {
-      const data = await getSales(branchId);
-      setSales(data);
+      const [page, kpi] = await Promise.all([
+        getSales(branchId, {
+          from: salesFilterFrom ? startOfDayIso(salesFilterFrom) : undefined,
+          to: salesFilterTo ? endOfDayIso(salesFilterTo) : undefined,
+          page: salesPage,
+          pageSize: SALES_PAGE_SIZE,
+        }),
+        getSalesKpiSummary(branchId),
+      ]);
+      setSales(page.items);
+      setSalesTotalCount(page.totalCount);
+      setSalesKpi(kpi);
     } catch (err) {
       setError(err.message || 'No se pudieron cargar las ventas.');
     } finally {
@@ -86,7 +104,16 @@ export function useSales() {
 
   useEffect(() => {
     loadSales();
-  }, [branchId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId, salesFilterFrom, salesFilterTo, salesPage]);
+
+  // Volver a la página 1 cuando cambia el rango de fechas — evita quedar en
+  // una página que ya no existe para el nuevo filtro.
+  useEffect(() => {
+    setSalesPage(1);
+  }, [salesFilterFrom, salesFilterTo]);
+
+  const salesTotalPages = Math.max(1, Math.ceil(salesTotalCount / SALES_PAGE_SIZE));
 
   function resetSaleForm() {
     setPriceListId('');
@@ -242,6 +269,14 @@ export function useSales() {
     products,
     priceLists,
     sales,
+    salesPage,
+    setSalesPage,
+    salesTotalPages,
+    salesFilterFrom,
+    setSalesFilterFrom,
+    salesFilterTo,
+    setSalesFilterTo,
+    salesKpi,
     loading,
     error,
 

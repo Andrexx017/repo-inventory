@@ -38,7 +38,8 @@ function isVigente(priceList) {
 export default function Sales() {
   const {
     branches, branchId, setBranchId, isGeneralAdmin, canCreateSale,
-    products, priceLists, sales, loading, error,
+    products, priceLists, sales, salesPage, setSalesPage, salesTotalPages, salesKpi, loading, error,
+    salesFilterFrom, setSalesFilterFrom, salesFilterTo, setSalesFilterTo,
     tab, setTab,
     priceListId, setPriceListId, customerName, setCustomerName,
     lines, addLine, removeLine, updateLine,
@@ -51,23 +52,15 @@ export default function Sales() {
     handleSavePrice, handleRemovePrice,
   } = useSales();
 
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const monthSales = sales.filter((s) => {
-    const d = new Date(s.saleDate);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  });
-  const salesToday = sales.filter((s) => s.saleDate.slice(0, 10) === today);
-  const monthTotal = monthSales.reduce((sum, s) => sum + s.total, 0);
-  const averageTicket = monthSales.length > 0 ? monthTotal / monthSales.length : 0;
-
-  const quantityByProduct = {};
-  monthSales.forEach((sale) => {
-    sale.items.forEach((item) => {
-      quantityByProduct[item.productName] = (quantityByProduct[item.productName] || 0) + item.quantity;
-    });
-  });
-  const topProductEntry = Object.entries(quantityByProduct).sort((a, b) => b[1] - a[1])[0];
+  // salesKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync) —
+  // no se puede calcular desde `sales` porque esa lista ahora está paginada.
+  const salesToday = salesKpi?.salesToday ?? 0;
+  const unitsToday = salesKpi?.unitsToday ?? 0;
+  const monthSalesCount = salesKpi?.salesThisMonth ?? 0;
+  const monthTotal = salesKpi?.monthTotal ?? 0;
+  const averageTicket = monthSalesCount > 0 ? monthTotal / monthSalesCount : 0;
+  const topProductName = salesKpi?.topProductName ?? null;
+  const topProductUnits = salesKpi?.topProductUnits ?? 0;
 
   return (
     <AppShell title="Ventas">
@@ -94,15 +87,13 @@ export default function Sales() {
           <div className="sal-kpi-grid">
             <div className="sal-kpi-card">
               <span className="sal-kpi-label">VENTAS DE HOY</span>
-              <span className="sal-kpi-value">{salesToday.length}</span>
-              <span className="sal-kpi-sub">
-                {salesToday.reduce((sum, s) => sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0)} unidades vendidas
-              </span>
+              <span className="sal-kpi-value">{salesToday}</span>
+              <span className="sal-kpi-sub">{unitsToday} unidades vendidas</span>
             </div>
             <div className="sal-kpi-card">
               <span className="sal-kpi-label">TOTAL DEL MES</span>
               <span className="sal-kpi-value">{formatMoney(monthTotal)}</span>
-              <span className="sal-kpi-sub">{monthSales.length} ventas este mes</span>
+              <span className="sal-kpi-sub">{monthSalesCount} ventas este mes</span>
             </div>
             <div className="sal-kpi-card">
               <span className="sal-kpi-label">TICKET PROMEDIO</span>
@@ -111,8 +102,8 @@ export default function Sales() {
             </div>
             <div className="sal-kpi-card">
               <span className="sal-kpi-label">PRODUCTO MÁS VENDIDO</span>
-              <span className="sal-kpi-value sal-kpi-value-text">{topProductEntry ? topProductEntry[0] : 'Sin ventas este mes'}</span>
-              <span className="sal-kpi-sub">{topProductEntry ? `${topProductEntry[1]} unidades este mes` : '—'}</span>
+              <span className="sal-kpi-value sal-kpi-value-text">{topProductName ?? 'Sin ventas este mes'}</span>
+              <span className="sal-kpi-sub">{topProductName ? `${topProductUnits} unidades este mes` : '—'}</span>
             </div>
           </div>
 
@@ -143,6 +134,29 @@ export default function Sales() {
                   </button>
                 </div>
               )}
+
+              <div className="filter-row">
+                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
+                  <label htmlFor="sal-filter-from">Desde</label>
+                  <input
+                    id="sal-filter-from"
+                    type="date"
+                    value={salesFilterFrom}
+                    max={salesFilterTo || undefined}
+                    onChange={(e) => setSalesFilterFrom(e.target.value)}
+                  />
+                </div>
+                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
+                  <label htmlFor="sal-filter-to">Hasta</label>
+                  <input
+                    id="sal-filter-to"
+                    type="date"
+                    value={salesFilterTo}
+                    min={salesFilterFrom || undefined}
+                    onChange={(e) => setSalesFilterTo(e.target.value)}
+                  />
+                </div>
+              </div>
 
               <div className="table-card">
                 <table className="data-table">
@@ -175,6 +189,26 @@ export default function Sales() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="inv-pagination">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={salesPage <= 1}
+                  onClick={() => setSalesPage((p) => p - 1)}
+                >
+                  Anterior
+                </button>
+                <span className="mono text-muted">Página {salesPage} de {salesTotalPages}</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={salesPage >= salesTotalPages}
+                  onClick={() => setSalesPage((p) => p + 1)}
+                >
+                  Siguiente
+                </button>
               </div>
 
               {viewSale && (

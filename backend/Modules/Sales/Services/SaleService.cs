@@ -6,6 +6,7 @@ using Inventory.Modules.Inventory.Services;
 using Inventory.Modules.Sales.Dtos;
 using Inventory.Modules.Sales.Entities;
 using Inventory.Modules.Sales.Repositories;
+using Inventory.Shared.Dtos;
 using Inventory.Shared.Exceptions;
 
 namespace Inventory.Modules.Sales.Services;
@@ -195,10 +196,12 @@ public class SaleService : ISaleService
         return ToDto(sale, seller?.Name ?? $"Usuario #{sellerId}");
     }
 
-    public async Task<IReadOnlyList<SaleDto>> GetByBranchAsync(long branchId)
+    public async Task<PagedResult<SaleDto>> GetByBranchAsync(
+        long branchId, DateTimeOffset? from, DateTimeOffset? to, int page, int pageSize)
     {
-        var sales = await _sales.GetByBranchAsync(branchId);
-        return sales.Select(s => ToDto(s, s.Seller.Name)).ToList();
+        var result = await _sales.GetByBranchAsync(branchId, from, to, page, pageSize);
+        var items = result.Items.Select(s => ToDto(s, s.Seller.Name)).ToList();
+        return new PagedResult<SaleDto>(items, result.TotalCount, result.Page, result.PageSize);
     }
 
     public async Task<SaleDto?> GetByIdAsync(long id)
@@ -206,6 +209,8 @@ public class SaleService : ISaleService
         var sale = await _sales.GetByIdAsync(id);
         return sale is null ? null : ToDto(sale, sale.Seller.Name);
     }
+
+    public Task<SalesKpiDto> GetKpiSummaryAsync(long branchId) => _sales.GetKpiSummaryAsync(branchId);
 
     // Simple y suficiente para el alcance de la prueba, mismo criterio y misma
     // limitación conocida que PurchaseOrderService.GenerateOrderNumberAsync

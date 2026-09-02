@@ -104,9 +104,7 @@ public class ReportService : IReportService
     private async Task<ReportTable> BuildSalesTableAsync(
         string branchName, long branchId, DateTimeOffset from, DateTimeOffset to)
     {
-        var sales = (await _saleService.GetByBranchAsync(branchId))
-            .Where(s => s.SaleDate >= from && s.SaleDate <= to)
-            .ToList();
+        var sales = (await _saleService.GetByBranchAsync(branchId, from, to, page: 1, pageSize: int.MaxValue)).Items;
 
         string[] columns = ["Fecha", "N° venta", "Cliente", "Vendedor", "Subtotal", "Descuento", "Total", "Estado"];
 

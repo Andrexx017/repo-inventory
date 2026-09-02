@@ -1,4 +1,6 @@
+using Inventory.Modules.Sales.Dtos;
 using Inventory.Modules.Sales.Entities;
+using Inventory.Shared.Dtos;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Inventory.Modules.Sales.Repositories;
@@ -6,7 +8,16 @@ namespace Inventory.Modules.Sales.Repositories;
 public interface ISaleRepository
 {
     Task<Sale?> GetByIdAsync(long id);
-    Task<IReadOnlyList<Sale>> GetByBranchAsync(long branchId);
+
+    // Paginado (page/pageSize) porque el historial de ventas de una sucursal
+    // no tiene límite de crecimiento, mismo criterio que GetMovementsByBranchAsync.
+    // from/to (opcionales) filtran por rango de fechas sobre SaleDate.
+    Task<PagedResult<Sale>> GetByBranchAsync(
+        long branchId, DateTimeOffset? from, DateTimeOffset? to, int page, int pageSize);
+
+    // Indicadores de hoy/mes/producto top para el encabezado de la pantalla de
+    // Ventas — agregados en SQL, no requieren traer las ventas completas.
+    Task<SalesKpiDto> GetKpiSummaryAsync(long branchId);
     Task<int> CountAsync();
     void Add(Sale sale);
     Task SaveChangesAsync();
