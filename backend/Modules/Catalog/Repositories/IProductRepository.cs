@@ -1,10 +1,19 @@
 using Inventory.Modules.Catalog.Entities;
+using Inventory.Shared.Dtos;
 
 namespace Inventory.Modules.Catalog.Repositories;
 
 public interface IProductRepository
 {
     Task<IReadOnlyList<Product>> GetAllAsync();
+
+    // Paginado y filtrable, para la pantalla de gestión del catálogo — ver
+    // comentario en ProductRepository.GetPagedAsync sobre por qué GetAllAsync
+    // (arriba) sigue existiendo aparte.
+    Task<PagedResult<Product>> GetPagedAsync(
+        string? search, long? categoryId, long? baseUnitId, bool? active,
+        decimal? minPrice, decimal? maxPrice, int page, int pageSize);
+
     Task<Product?> GetByIdAsync(long id);
     Task<Product?> GetBySkuAsync(string sku);
     Task AddAsync(Product product);

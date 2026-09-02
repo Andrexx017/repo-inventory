@@ -1,6 +1,7 @@
 using Inventory.Modules.Auth;
 using Inventory.Modules.Catalog.Dtos;
 using Inventory.Modules.Catalog.Services;
+using Inventory.Shared.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,6 +22,16 @@ public class ProductsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ProductDto>>> GetAll() =>
         Ok(await _productService.GetAllAsync());
+
+    // Paginado y filtrable — lo usa la pantalla de gestión del catálogo
+    // (Catálogo > Productos). GetAll (arriba) sigue trayendo el catálogo
+    // completo porque otros módulos lo usan como fuente de <select>.
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResult<ProductDto>>> GetPaged(
+        [FromQuery] string? search, [FromQuery] long? categoryId, [FromQuery] long? baseUnitId,
+        [FromQuery] bool? active, [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25) =>
+        Ok(await _productService.GetPagedAsync(search, categoryId, baseUnitId, active, minPrice, maxPrice, page, pageSize));
 
     [HttpGet("{id:long}")]
     public async Task<ActionResult<ProductDto>> GetById(long id)

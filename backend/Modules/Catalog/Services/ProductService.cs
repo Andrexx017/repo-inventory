@@ -1,6 +1,7 @@
 using Inventory.Modules.Catalog.Dtos;
 using Inventory.Modules.Catalog.Entities;
 using Inventory.Modules.Catalog.Repositories;
+using Inventory.Shared.Dtos;
 using Inventory.Shared.Exceptions;
 
 namespace Inventory.Modules.Catalog.Services;
@@ -22,6 +23,15 @@ public class ProductService : IProductService
     {
         var products = await _products.GetAllAsync();
         return products.Select(ToDto).ToList();
+    }
+
+    public async Task<PagedResult<ProductDto>> GetPagedAsync(
+        string? search, long? categoryId, long? baseUnitId, bool? active,
+        decimal? minPrice, decimal? maxPrice, int page, int pageSize)
+    {
+        var result = await _products.GetPagedAsync(search, categoryId, baseUnitId, active, minPrice, maxPrice, page, pageSize);
+        var items = result.Items.Select(ToDto).ToList();
+        return new PagedResult<ProductDto>(items, result.TotalCount, result.Page, result.PageSize);
     }
 
     public async Task<ProductDto?> GetByIdAsync(long id)

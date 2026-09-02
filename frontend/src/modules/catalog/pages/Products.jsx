@@ -19,7 +19,7 @@ function CloseIcon() {
 
 export default function Products() {
     const {
-        products, totalCount, loading, error, isGeneralAdmin,
+        products, totalCount, page, setPage, totalPages, loading, error, isGeneralAdmin,
         search, setSearch,
         categoryId, setCategoryId,
         baseUnitId, setBaseUnitId,
@@ -149,7 +149,7 @@ export default function Products() {
 
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '14px' }}>
                             <span className="text-muted" style={{ fontSize: '13px' }}>
-                                {products.length} de {totalCount} productos
+                                {totalCount} producto{totalCount === 1 ? '' : 's'} encontrado{totalCount === 1 ? '' : 's'}
                             </span>
                             <button type="button" className="btn-secondary" style={{ marginLeft: 0 }} onClick={resetFilters}>
                                 Limpiar filtros
@@ -200,6 +200,26 @@ export default function Products() {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+
+                    <div className="inv-pagination">
+                        <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={page <= 1}
+                            onClick={() => setPage((p) => p - 1)}
+                        >
+                            Anterior
+                        </button>
+                        <span className="mono text-muted">Página {page} de {totalPages}</span>
+                        <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={page >= totalPages}
+                            onClick={() => setPage((p) => p + 1)}
+                        >
+                            Siguiente
+                        </button>
                     </div>
                 </>
             )}
