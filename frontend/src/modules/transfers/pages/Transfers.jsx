@@ -1,5 +1,6 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import AppShell from '../../../shared/components/AppShell';
+import { KpiModal, KpiModalTrigger } from '../../../shared/components/KpiModal';
 import {
   useTransfers,
   STATUS_LABELS,
@@ -22,6 +23,44 @@ function CloseIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+function TruckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 7h11v9H2z" />
+      <path d="M13 10h4l4 3.5V16h-8z" />
+      <circle cx="6.5" cy="18" r="1.7" /><circle cx="16.5" cy="18" r="1.7" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+    </svg>
+  );
+}
+
+function CheckCircleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12.5l2.5 2.5L16 9.5" />
+    </svg>
+  );
+}
+
+function TimerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 2h4" />
+      <circle cx="12" cy="14" r="8" />
+      <path d="M12 10v4l3 2" />
     </svg>
   );
 }
@@ -131,6 +170,8 @@ export default function Transfers() {
     canPrepare, canShip, canReceiveTransfer,
   } = useTransfers();
 
+  const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
+
   // transfersKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync)
   // — no se puede calcular desde `transfers` porque esa lista ahora está
   // paginada (y filtrada por la pestaña activa).
@@ -145,16 +186,20 @@ export default function Transfers() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
         <h1 className="page-title">Transferencias</h1>
 
-        {isGeneralAdmin && (
-          <div className="field" style={{ margin: 0, flex: '0 0 260px' }}>
-            <label htmlFor="trf-branch">Sucursal</label>
-            <select id="trf-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <KpiModalTrigger onClick={() => setIsKpiModalOpen(true)} />
+
+          {isGeneralAdmin && (
+            <div className="field" style={{ margin: 0, flex: '0 0 260px' }}>
+              <label htmlFor="trf-branch">Sucursal</label>
+              <select id="trf-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {loading && <p>Cargando...</p>}
@@ -162,30 +207,44 @@ export default function Transfers() {
 
       {!loading && !error && (
         <>
-          <div className="trf-kpi-grid">
-            <div className="trf-kpi-card">
-              <span className="trf-kpi-label">EN TRÁNSITO</span>
-              <span className="trf-kpi-value trf-kpi-value-cyan">{enTransito}</span>
-              <span className="trf-kpi-sub">Camino a su destino</span>
+          <KpiModal title="Indicadores — Transferencias" open={isKpiModalOpen} onClose={() => setIsKpiModalOpen(false)}>
+            <div className="trf-kpi-grid">
+              <div className="trf-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge kpi-icon-badge-cyan"><TruckIcon /></span>
+                  <span className="trf-kpi-label">EN TRÁNSITO</span>
+                </div>
+                <span className="trf-kpi-value trf-kpi-value-cyan">{enTransito}</span>
+                <span className="trf-kpi-sub">Camino a su destino</span>
+              </div>
+              <div className="trf-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge kpi-icon-badge-warning"><ClockIcon /></span>
+                  <span className="trf-kpi-label">PENDIENTES DE ACCIÓN</span>
+                </div>
+                <span className="trf-kpi-value trf-kpi-value-warning">{pendientesAccion}</span>
+                <span className="trf-kpi-sub">Solicitadas o en preparación</span>
+              </div>
+              <div className="trf-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge kpi-icon-badge-success"><CheckCircleIcon /></span>
+                  <span className="trf-kpi-label">RECIBIDAS ESTE MES</span>
+                </div>
+                <span className="trf-kpi-value">{recibidasEsteMesCount}</span>
+                <span className="trf-kpi-sub">{conFaltante} con faltante detectado</span>
+              </div>
+              <div className="trf-kpi-card">
+                <div className="kpi-card-header">
+                  <span className={`kpi-icon-badge ${avgDelay > 0 ? 'kpi-icon-badge-warning' : 'kpi-icon-badge-success'}`}><TimerIcon /></span>
+                  <span className="trf-kpi-label">RETRASO PROMEDIO</span>
+                </div>
+                <span className="trf-kpi-value" style={{ color: avgDelay > 0 ? 'var(--warning)' : 'var(--success)' }}>
+                  {avgDelay === null ? '—' : `${avgDelay > 0 ? '+' : '−'}${Math.abs(Math.round(avgDelay * 10) / 10)} d`}
+                </span>
+                <span className="trf-kpi-sub">Estimado vs. real de llegada</span>
+              </div>
             </div>
-            <div className="trf-kpi-card">
-              <span className="trf-kpi-label">PENDIENTES DE ACCIÓN</span>
-              <span className="trf-kpi-value trf-kpi-value-warning">{pendientesAccion}</span>
-              <span className="trf-kpi-sub">Solicitadas o en preparación</span>
-            </div>
-            <div className="trf-kpi-card">
-              <span className="trf-kpi-label">RECIBIDAS ESTE MES</span>
-              <span className="trf-kpi-value">{recibidasEsteMesCount}</span>
-              <span className="trf-kpi-sub">{conFaltante} con faltante detectado</span>
-            </div>
-            <div className="trf-kpi-card">
-              <span className="trf-kpi-label">RETRASO PROMEDIO</span>
-              <span className="trf-kpi-value" style={{ color: avgDelay > 0 ? 'var(--warning)' : 'var(--success)' }}>
-                {avgDelay === null ? '—' : `${avgDelay > 0 ? '+' : '−'}${Math.abs(Math.round(avgDelay * 10) / 10)} d`}
-              </span>
-              <span className="trf-kpi-sub">Estimado vs. real de llegada</span>
-            </div>
-          </div>
+          </KpiModal>
 
           <div className="trf-tabs">
             <button type="button" className={`trf-tab ${tab === 'todas' ? 'trf-tab-active' : ''}`} onClick={() => setTab('todas')}>Todas</button>

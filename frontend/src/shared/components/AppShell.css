@@ -1,6 +1,7 @@
 .app-shell {
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
+    overflow: hidden;
 }
 
 /* Sidebar */
@@ -13,6 +14,7 @@
     display: flex;
     flex-direction: column;
     padding: 22px 0;
+    overflow-y: auto;
 }
 
 .sidebar-brand {
@@ -216,11 +218,29 @@
 
 .app-content {
     flex: 1;
+    min-height: 0;
     padding: 28px 32px;
     display: flex;
     flex-direction: column;
     gap: 22px;
+    /* auto (no hidden) a propósito: si una pantalla sin .table-card (ej.
+       Dashboard) igual no entra en el alto disponible, que haga scroll de
+       página como respaldo en vez de recortar contenido invisible. En las
+       pantallas con .table-card esto no llega a activarse porque la tabla
+       ya absorbe el espacio sobrante (ver reglas de abajo). */
     overflow: auto;
+}
+
+/* Los hijos directos del contenido (títulos, filtros, KPIs, paginación)
+   mantienen su tamaño natural; solo .table-card crece/encoge para que el
+   scroll vertical quede contenido dentro de la tabla, no en toda la página. */
+.app-content > * {
+    flex-shrink: 0;
+}
+
+.app-content > .table-card {
+    flex: 1;
+    min-height: 0;
 }
 
 .sidebar-toggle {

@@ -5,6 +5,12 @@
     gap: 20px;
 }
 
+.inv-topline-actions {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+
 .inv-branch-picker {
     display: flex;
     flex-direction: column;
@@ -199,6 +205,12 @@
 @media (max-width: 900px) {
     .inv-topline {
         flex-direction: column;
+    }
+
+    .inv-topline-actions {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
     }
 
     .inv-branch-picker {

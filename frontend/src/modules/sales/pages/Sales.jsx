@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import AppShell from '../../../shared/components/AppShell';
+import { KpiModal, KpiModalTrigger } from '../../../shared/components/KpiModal';
 import { useSales } from '../hooks/useSales';
 import './Sales.css';
 
@@ -14,6 +16,41 @@ function PlusIcon() {
   return (
     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 9h18M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+
+function CashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function ReceiptIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" />
+      <path d="M9 8h6M9 12h6" />
+    </svg>
+  );
+}
+
+function StarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2.5l2.9 6.4 6.9.7-5.2 4.7 1.6 6.8-6.2-3.6-6.2 3.6 1.6-6.8-5.2-4.7 6.9-.7z" />
     </svg>
   );
 }
@@ -52,6 +89,8 @@ export default function Sales() {
     handleSavePrice, handleRemovePrice,
   } = useSales();
 
+  const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
+
   // salesKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync) —
   // no se puede calcular desde `sales` porque esa lista ahora está paginada.
   const salesToday = salesKpi?.salesToday ?? 0;
@@ -67,16 +106,20 @@ export default function Sales() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
         <h1 className="page-title">Ventas</h1>
 
-        {isGeneralAdmin && (
-          <div className="field" style={{ margin: 0, flex: '0 0 260px' }}>
-            <label htmlFor="sal-branch">Sucursal</label>
-            <select id="sal-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <KpiModalTrigger onClick={() => setIsKpiModalOpen(true)} />
+
+          {isGeneralAdmin && (
+            <div className="field" style={{ margin: 0, flex: '0 0 260px' }}>
+              <label htmlFor="sal-branch">Sucursal</label>
+              <select id="sal-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {loading && <p>Cargando...</p>}
@@ -84,28 +127,42 @@ export default function Sales() {
 
       {!loading && !error && (
         <>
-          <div className="sal-kpi-grid">
-            <div className="sal-kpi-card">
-              <span className="sal-kpi-label">VENTAS DE HOY</span>
-              <span className="sal-kpi-value">{salesToday}</span>
-              <span className="sal-kpi-sub">{unitsToday} unidades vendidas</span>
+          <KpiModal title="Indicadores — Ventas" open={isKpiModalOpen} onClose={() => setIsKpiModalOpen(false)}>
+            <div className="sal-kpi-grid">
+              <div className="sal-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge"><CalendarIcon /></span>
+                  <span className="sal-kpi-label">VENTAS DE HOY</span>
+                </div>
+                <span className="sal-kpi-value">{salesToday}</span>
+                <span className="sal-kpi-sub">{unitsToday} unidades vendidas</span>
+              </div>
+              <div className="sal-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge kpi-icon-badge-success"><CashIcon /></span>
+                  <span className="sal-kpi-label">TOTAL DEL MES</span>
+                </div>
+                <span className="sal-kpi-value">{formatMoney(monthTotal)}</span>
+                <span className="sal-kpi-sub">{monthSalesCount} ventas este mes</span>
+              </div>
+              <div className="sal-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge kpi-icon-badge-cyan"><ReceiptIcon /></span>
+                  <span className="sal-kpi-label">TICKET PROMEDIO</span>
+                </div>
+                <span className="sal-kpi-value">{formatMoney(averageTicket)}</span>
+                <span className="sal-kpi-sub">Sobre el mes actual</span>
+              </div>
+              <div className="sal-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge kpi-icon-badge-warning"><StarIcon /></span>
+                  <span className="sal-kpi-label">PRODUCTO MÁS VENDIDO</span>
+                </div>
+                <span className="sal-kpi-value sal-kpi-value-text">{topProductName ?? 'Sin ventas este mes'}</span>
+                <span className="sal-kpi-sub">{topProductName ? `${topProductUnits} unidades este mes` : '—'}</span>
+              </div>
             </div>
-            <div className="sal-kpi-card">
-              <span className="sal-kpi-label">TOTAL DEL MES</span>
-              <span className="sal-kpi-value">{formatMoney(monthTotal)}</span>
-              <span className="sal-kpi-sub">{monthSalesCount} ventas este mes</span>
-            </div>
-            <div className="sal-kpi-card">
-              <span className="sal-kpi-label">TICKET PROMEDIO</span>
-              <span className="sal-kpi-value">{formatMoney(averageTicket)}</span>
-              <span className="sal-kpi-sub">Sobre el mes actual</span>
-            </div>
-            <div className="sal-kpi-card">
-              <span className="sal-kpi-label">PRODUCTO MÁS VENDIDO</span>
-              <span className="sal-kpi-value sal-kpi-value-text">{topProductName ?? 'Sin ventas este mes'}</span>
-              <span className="sal-kpi-sub">{topProductName ? `${topProductUnits} unidades este mes` : '—'}</span>
-            </div>
-          </div>
+          </KpiModal>
 
           <div className="sal-tabs">
             <button

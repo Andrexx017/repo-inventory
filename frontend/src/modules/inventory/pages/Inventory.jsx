@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import AppShell from '../../../shared/components/AppShell';
+import { KpiModal, KpiModalTrigger } from '../../../shared/components/KpiModal';
 import {
   useInventory,
   INCOMING_TYPES,
@@ -33,6 +35,42 @@ function CloseIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+function BoxIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2 3 7v10l9 5 9-5V7z" />
+      <path d="M3 7l9 5 9-5" />
+      <path d="M12 12v10" />
+    </svg>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 2 20h20L12 3z" />
+      <path d="M12 9v5M12 17h.01" />
+    </svg>
+  );
+}
+
+function CashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function ActivityIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 12h4l3 8 4-16 3 8h4" />
     </svg>
   );
 }
@@ -75,6 +113,8 @@ export default function Inventory() {
     alertError, resolvingAlertId, handleResolveAlert,
   } = useInventory();
 
+  const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
+
   const currentBranch = branches.find((b) => String(b.id) === branchId);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -99,26 +139,30 @@ export default function Inventory() {
           )}
         </div>
 
-        <div className="inv-branch-picker">
-          <div className="inv-branch-row">
-            {isGeneralAdmin && (
-              <span className="status-pill status-pill-accent">ACCESO TOTAL</span>
+        <div className="inv-topline-actions">
+          <KpiModalTrigger onClick={() => setIsKpiModalOpen(true)} />
+
+          <div className="inv-branch-picker">
+            <div className="inv-branch-row">
+              {isGeneralAdmin && (
+                <span className="status-pill status-pill-accent">ACCESO TOTAL</span>
+              )}
+              {!isGeneralAdmin && canMutate && (
+                <span className="status-pill status-pill-accent">TU SUCURSAL</span>
+              )}
+              {!isGeneralAdmin && !canMutate && branchId && (
+                <span className="status-pill status-pill-warn">SOLO LECTURA</span>
+              )}
+              <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name} — {branch.city}</option>
+                ))}
+              </select>
+            </div>
+            {!isGeneralAdmin && (
+              <span className="inv-branch-note">Podés consultar otras sucursales en solo lectura.</span>
             )}
-            {!isGeneralAdmin && canMutate && (
-              <span className="status-pill status-pill-accent">TU SUCURSAL</span>
-            )}
-            {!isGeneralAdmin && !canMutate && branchId && (
-              <span className="status-pill status-pill-warn">SOLO LECTURA</span>
-            )}
-            <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name} — {branch.city}</option>
-              ))}
-            </select>
           </div>
-          {!isGeneralAdmin && (
-            <span className="inv-branch-note">Podés consultar otras sucursales en solo lectura.</span>
-          )}
         </div>
       </div>
 
@@ -127,27 +171,41 @@ export default function Inventory() {
 
       {!loading && !error && (
         <>
-          <div className="inv-kpi-grid">
-            <div className="inv-kpi-card">
-              <span className="inv-kpi-label">PRODUCTOS EN INVENTARIO</span>
-              <span className="inv-kpi-value">{items.length}</span>
+          <KpiModal title="Indicadores — Inventario" open={isKpiModalOpen} onClose={() => setIsKpiModalOpen(false)}>
+            <div className="inv-kpi-grid">
+              <div className="inv-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge"><BoxIcon /></span>
+                  <span className="inv-kpi-label">PRODUCTOS EN INVENTARIO</span>
+                </div>
+                <span className="inv-kpi-value">{items.length}</span>
+              </div>
+              <div className="inv-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge kpi-icon-badge-warning"><AlertIcon /></span>
+                  <span className="inv-kpi-label">ALERTAS ACTIVAS</span>
+                </div>
+                <span className="inv-kpi-value inv-kpi-value-warning">{activeAlertsCount}</span>
+                <span className="inv-kpi-sub">{lowStockCount} productos por debajo del mínimo</span>
+              </div>
+              <div className="inv-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge kpi-icon-badge-cyan"><CashIcon /></span>
+                  <span className="inv-kpi-label">VALOR DE INVENTARIO</span>
+                </div>
+                <span className="inv-kpi-value">{formatMoney(inventoryValue)}</span>
+                <span className="inv-kpi-sub">Costo promedio ponderado</span>
+              </div>
+              <div className="inv-kpi-card">
+                <div className="kpi-card-header">
+                  <span className="kpi-icon-badge kpi-icon-badge-success"><ActivityIcon /></span>
+                  <span className="inv-kpi-label">MOVIMIENTOS HOY</span>
+                </div>
+                <span className="inv-kpi-value">{movementsToday.length}</span>
+                <span className="inv-kpi-sub">{incomingToday} ingresos · {outgoingToday} retiros</span>
+              </div>
             </div>
-            <div className="inv-kpi-card">
-              <span className="inv-kpi-label">ALERTAS ACTIVAS</span>
-              <span className="inv-kpi-value inv-kpi-value-warning">{activeAlertsCount}</span>
-              <span className="inv-kpi-sub">{lowStockCount} productos por debajo del mínimo</span>
-            </div>
-            <div className="inv-kpi-card">
-              <span className="inv-kpi-label">VALOR DE INVENTARIO</span>
-              <span className="inv-kpi-value">{formatMoney(inventoryValue)}</span>
-              <span className="inv-kpi-sub">Costo promedio ponderado</span>
-            </div>
-            <div className="inv-kpi-card">
-              <span className="inv-kpi-label">MOVIMIENTOS HOY</span>
-              <span className="inv-kpi-value">{movementsToday.length}</span>
-              <span className="inv-kpi-sub">{incomingToday} ingresos · {outgoingToday} retiros</span>
-            </div>
-          </div>
+          </KpiModal>
 
           <div className="inv-tabs">
             <button
