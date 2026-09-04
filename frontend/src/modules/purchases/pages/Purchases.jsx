@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import AppShell from '../../../shared/components/AppShell';
 import { KpiModal, KpiModalTrigger } from '../../../shared/components/KpiModal';
+import { ConfirmModal } from '../../../shared/components/ConfirmModal';
 import { usePurchases, ORDER_STATUS_LABELS } from '../hooks/usePurchases';
 import './Purchases.css';
 
@@ -89,6 +90,7 @@ export default function Purchases() {
   } = usePurchases();
 
   const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   // ordersKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync) —
   // no se puede calcular desde `orders` porque esa lista ahora está paginada.
@@ -252,13 +254,13 @@ export default function Purchases() {
                         <td className="pur-actions">
                           <div className="pur-actions-inner">
                             {canApprove(order) && (
-                              <button type="button" className="pur-action-approve" onClick={() => handleApprove(order)}>Aprobar</button>
+                              <button type="button" className="pur-action-approve" onClick={() => setConfirmAction({ type: 'approve', order })}>Aprobar</button>
                             )}
                             {canReceive(order) && (
                               <button type="button" className="pur-action-receive" onClick={() => openReceipt(order)}>Recibir</button>
                             )}
                             {canCancel(order) && (
-                              <button type="button" className="pur-action-cancel" onClick={() => handleCancel(order)}>Cancelar</button>
+                              <button type="button" className="pur-action-cancel" onClick={() => setConfirmAction({ type: 'cancel', order })}>Cancelar</button>
                             )}
                           </div>
                         </td>
@@ -288,52 +290,81 @@ export default function Purchases() {
                 </button>
               </div>
 
+              <ConfirmModal
+                open={!!confirmAction}
+                title={confirmAction?.type === 'approve' ? 'Aprobar orden de compra' : 'Cancelar orden de compra'}
+                message={
+                  confirmAction?.type === 'approve'
+                    ? `¿Seguro que querés aprobar la orden ${confirmAction?.order.orderNumber} (${confirmAction?.order.supplierName})? Una vez aprobada vas a poder registrar la recepción de los productos.`
+                    : `¿Seguro que querés cancelar la orden ${confirmAction?.order.orderNumber} (${confirmAction?.order.supplierName})? Esta acción no se puede deshacer.`
+                }
+                confirmLabel={confirmAction?.type === 'approve' ? 'Aprobar' : 'Cancelar orden'}
+                tone={confirmAction?.type === 'cancel' ? 'danger' : 'default'}
+                onConfirm={() => {
+                  if (confirmAction?.type === 'approve') handleApprove(confirmAction.order);
+                  else if (confirmAction?.type === 'cancel') handleCancel(confirmAction.order);
+                  setConfirmAction(null);
+                }}
+                onCancel={() => setConfirmAction(null)}
+              />
+
               {receiptOrder && (
-                <form onSubmit={handleSubmitReceipt} className="form-card">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                    <h2 style={{ margin: 0 }}>Confirmar recepción — {receiptOrder.orderNumber} · {receiptOrder.supplierName}</h2>
-                    <button type="button" className="btn-secondary" onClick={closeReceipt} style={{ marginLeft: 0 }}>Cerrar</button>
+                <div className="modal-overlay" onClick={closeReceipt}>
+                  <div className="modal-panel modal-panel-lg" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-header">
+                      <h2 className="modal-title">Confirmar recepción — {receiptOrder.orderNumber} · {receiptOrder.supplierName}</h2>
+                      <button type="button" className="modal-close" onClick={closeReceipt} aria-label="Cerrar">
+                        <CloseIcon />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSubmitReceipt}>
+                      <div className="modal-body">
+                        <div className="pur-lines-table">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Producto</th>
+                                <th>Pedido</th>
+                                <th>Pendiente</th>
+                                <th>Recibido ahora</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {receiptOrder.items.map((item) => (
+                                <tr key={item.id}>
+                                  <td>{item.productName}</td>
+                                  <td className="mono text-muted">{item.quantity}</td>
+                                  <td className="mono text-muted">{receiptPending[item.id]}</td>
+                                  <td>
+                                    <input
+                                      type="number" min="0" max={receiptPending[item.id]} step="0.01"
+                                      value={receiptQuantities[item.id] ?? ''}
+                                      disabled={receiptPending[item.id] <= 0}
+                                      onChange={(e) => setReceiptQuantity(item.id, e.target.value)}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="field" style={{ marginBottom: 0 }}>
+                          <label htmlFor="receipt-notes">Notas</label>
+                          <input id="receipt-notes" value={receiptNotes} onChange={(e) => setReceiptNotes(e.target.value)} />
+                        </div>
+
+                        {receiptError && <p className="form-error" style={{ marginBottom: 0, marginTop: '14px' }}>{receiptError}</p>}
+                      </div>
+
+                      <div className="modal-footer">
+                        <button type="submit" className="btn-primary">CONFIRMAR RECEPCIÓN</button>
+                        <button type="button" className="btn-secondary" onClick={closeReceipt}>Cancelar</button>
+                      </div>
+                    </form>
                   </div>
-
-                  <div className="pur-lines-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Producto</th>
-                          <th>Pedido</th>
-                          <th>Pendiente</th>
-                          <th>Recibido ahora</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {receiptOrder.items.map((item) => (
-                          <tr key={item.id}>
-                            <td>{item.productName}</td>
-                            <td className="mono text-muted">{item.quantity}</td>
-                            <td className="mono text-muted">{receiptPending[item.id]}</td>
-                            <td>
-                              <input
-                                type="number" min="0" max={receiptPending[item.id]} step="0.01"
-                                value={receiptQuantities[item.id] ?? ''}
-                                disabled={receiptPending[item.id] <= 0}
-                                onChange={(e) => setReceiptQuantity(item.id, e.target.value)}
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="field" style={{ marginBottom: '16px' }}>
-                    <label htmlFor="receipt-notes">Notas</label>
-                    <input id="receipt-notes" value={receiptNotes} onChange={(e) => setReceiptNotes(e.target.value)} />
-                  </div>
-
-                  {receiptError && <p className="form-error">{receiptError}</p>}
-
-                  <button type="submit" className="btn-primary">CONFIRMAR RECEPCIÓN</button>
-                </form>
+                </div>
               )}
             </>
           )}

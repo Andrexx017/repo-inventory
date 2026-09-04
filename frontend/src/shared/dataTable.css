@@ -267,6 +267,21 @@
     margin-left: 8px;
 }
 
+/* Variante de .btn-primary para la acción destructiva de un ConfirmModal
+   (ej. "Cancelar orden") — mismo criterio de color que .inv-btn-out. */
+.btn-primary-danger {
+    background: var(--danger);
+    color: #fff5f4;
+}
+
+/* Modal de confirmación (ConfirmModal.jsx) */
+.confirm-modal-message {
+    margin: 0;
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+
 /* Encabezado de página con acciones (ej. Catálogo: "Nuevo producto" / "Nueva
    unidad de medida") */
 
