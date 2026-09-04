@@ -269,45 +269,51 @@ export default function Sales() {
               </div>
 
               {viewSale && (
-                <div className="form-card">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                    <h2 style={{ margin: 0 }}>Comprobante — {viewSale.saleNumber} · {viewSale.customerName || 'Consumidor final'}</h2>
-                    <button type="button" className="btn-secondary" onClick={closeComprobante} style={{ marginLeft: 0 }}>Cerrar</button>
-                  </div>
+                <div className="modal-overlay" onClick={closeComprobante}>
+                  <div className="modal-panel modal-panel-lg" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-header">
+                      <h2 className="modal-title">Comprobante — {viewSale.saleNumber} · {viewSale.customerName || 'Consumidor final'}</h2>
+                      <button type="button" className="modal-close" onClick={closeComprobante} aria-label="Cerrar">
+                        <CloseIcon />
+                      </button>
+                    </div>
 
-                  <p className="mono sal-kpi-sub" style={{ marginBottom: '14px' }}>
-                    {formatDate(viewSale.saleDate)} · {viewSale.priceListName || 'Precio de referencia'} · Vendedor: {viewSale.sellerName}
-                  </p>
+                    <div className="modal-body">
+                      <p className="mono sal-kpi-sub" style={{ marginBottom: '14px' }}>
+                        {formatDate(viewSale.saleDate)} · {viewSale.priceListName || 'Precio de referencia'} · Vendedor: {viewSale.sellerName}
+                      </p>
 
-                  <div className="sal-lines-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Producto</th>
-                          <th>Cantidad</th>
-                          <th>Precio</th>
-                          <th>Descuento</th>
-                          <th>Subtotal</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {viewSale.items.map((item) => (
-                          <tr key={item.id}>
-                            <td>{item.productName}</td>
-                            <td className="mono">{item.quantity}</td>
-                            <td className="mono">{formatMoney(item.unitPrice)}</td>
-                            <td className="mono">{item.discountPct}%</td>
-                            <td className="mono">{formatMoney(item.subtotal)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      <div className="sal-lines-table">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Producto</th>
+                              <th>Cantidad</th>
+                              <th>Precio</th>
+                              <th>Descuento</th>
+                              <th>Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {viewSale.items.map((item) => (
+                              <tr key={item.id}>
+                                <td>{item.productName}</td>
+                                <td className="mono">{item.quantity}</td>
+                                <td className="mono">{formatMoney(item.unitPrice)}</td>
+                                <td className="mono">{item.discountPct}%</td>
+                                <td className="mono">{formatMoney(item.subtotal)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
 
-                  <div className="sal-totals-bar">
-                    <span>Subtotal <span className="sal-total-value">{formatMoney(viewSale.subtotal)}</span></span>
-                    <span>Descuento <span className="sal-total-value">−{formatMoney(viewSale.totalDiscount)}</span></span>
-                    <span style={{ fontWeight: 600 }}>Total <span className="sal-total-value" style={{ fontSize: '14px' }}>{formatMoney(viewSale.total)}</span></span>
+                      <div className="sal-totals-bar">
+                        <span>Subtotal <span className="sal-total-value">{formatMoney(viewSale.subtotal)}</span></span>
+                        <span>Descuento <span className="sal-total-value">−{formatMoney(viewSale.totalDiscount)}</span></span>
+                        <span style={{ fontWeight: 600 }}>Total <span className="sal-total-value" style={{ fontSize: '14px' }}>{formatMoney(viewSale.total)}</span></span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

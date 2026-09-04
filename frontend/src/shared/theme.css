@@ -6,6 +6,19 @@ body {
     margin: 0;
 }
 
+/* Sacar el incrementador nativo (flechitas arriba/abajo) de los <input
+   type="number"> en toda la app — mejor escribir el número directo, sin el
+   control del navegador encima. */
+input[type='number'] {
+    -moz-appearance: textfield;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
 :root {
     --font-sans: 'IBM Plex Sans', system-ui, 'Segoe UI', sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;

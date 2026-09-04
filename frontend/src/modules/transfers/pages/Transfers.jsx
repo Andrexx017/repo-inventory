@@ -352,53 +352,59 @@ export default function Transfers() {
           </div>
 
           {viewTransfer && (
-            <div className="form-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <div>
-                  <h2 style={{ margin: 0 }}>{viewTransfer.transferNumber}</h2>
-                  <div className="trf-route text-muted" style={{ fontSize: '13px', marginTop: '4px' }}>
-                    <span>{viewTransfer.originBranchName}</span>
-                    <svg className="trf-route-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                    <span>{viewTransfer.destinationBranchName}</span>
+            <div className="modal-overlay" onClick={closeView}>
+              <div className="modal-panel modal-panel-lg" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <div>
+                    <h2 className="modal-title">{viewTransfer.transferNumber}</h2>
+                    <div className="trf-route text-muted" style={{ fontSize: '13px', marginTop: '4px' }}>
+                      <span>{viewTransfer.originBranchName}</span>
+                      <svg className="trf-route-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                      <span>{viewTransfer.destinationBranchName}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <span className={`status-pill ${STATUS_CLASSES[viewTransfer.status]}`}>{STATUS_LABELS[viewTransfer.status]}</span>
+                    <button type="button" className="modal-close" onClick={closeView} aria-label="Cerrar">
+                      <CloseIcon />
+                    </button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span className={`status-pill ${STATUS_CLASSES[viewTransfer.status]}`}>{STATUS_LABELS[viewTransfer.status]}</span>
-                  <button type="button" className="btn-secondary" onClick={closeView} style={{ marginLeft: 0 }}>Cerrar</button>
+
+                <div className="modal-body">
+                  <div className="trf-logistics-grid">
+                    <div className="trf-logistics-field"><div className="trf-lf-label">Transportista</div><div className="trf-lf-value">{viewTransfer.carrier || '—'}</div></div>
+                    <div className="trf-logistics-field"><div className="trf-lf-label">Costo de envío</div><div className="trf-lf-value">{formatMoney(viewTransfer.shippingCost)}</div></div>
+                    <div className="trf-logistics-field"><div className="trf-lf-label">Prioridad de ruta</div><div className="trf-lf-value">{viewTransfer.routePriority ? URGENCY_LABELS[viewTransfer.routePriority] : '—'}</div></div>
+                    <div className="trf-logistics-field">
+                      <div className="trf-lf-label">Retraso (estimado vs. real)</div>
+                      <div className="trf-lf-value" style={{ color: formatDelay(viewTransfer).color }}>{formatDelay(viewTransfer).text}</div>
+                    </div>
+                    <div className="trf-logistics-field"><div className="trf-lf-label">Llegada estimada</div><div className="trf-lf-value">{formatDate(viewTransfer.estimatedArrivalDate)}</div></div>
+                    <div className="trf-logistics-field"><div className="trf-lf-label">Llegada real</div><div className="trf-lf-value">{formatDateTime(viewTransfer.actualArrivalDate)}</div></div>
+                  </div>
+
+                  <Stepper transfer={viewTransfer} />
+
+                  <div className="trf-lines-table" style={{ marginTop: '16px' }}>
+                    <table>
+                      <thead>
+                        <tr><th>Producto</th><th>Cant. solicitada</th><th>Cant. despachada</th><th>Cant. recibida</th><th>Diferencia</th></tr>
+                      </thead>
+                      <tbody>
+                        {viewTransfer.items.map((item) => (
+                          <tr key={item.id}>
+                            <td>{item.productName}<span className="text-muted mono" style={{ fontSize: '11px', display: 'block' }}>{item.productSku}</span></td>
+                            <td className="mono">{item.requestedQuantity}</td>
+                            <td className="mono text-muted">{item.shippedQuantity}</td>
+                            <td className="mono text-muted">{item.receivedQuantity}</td>
+                            <td className="mono" style={{ color: item.difference > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>{item.difference}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-
-              <div className="trf-logistics-grid">
-                <div className="trf-logistics-field"><div className="trf-lf-label">Transportista</div><div className="trf-lf-value">{viewTransfer.carrier || '—'}</div></div>
-                <div className="trf-logistics-field"><div className="trf-lf-label">Costo de envío</div><div className="trf-lf-value">{formatMoney(viewTransfer.shippingCost)}</div></div>
-                <div className="trf-logistics-field"><div className="trf-lf-label">Prioridad de ruta</div><div className="trf-lf-value">{viewTransfer.routePriority ? URGENCY_LABELS[viewTransfer.routePriority] : '—'}</div></div>
-                <div className="trf-logistics-field">
-                  <div className="trf-lf-label">Retraso (estimado vs. real)</div>
-                  <div className="trf-lf-value" style={{ color: formatDelay(viewTransfer).color }}>{formatDelay(viewTransfer).text}</div>
-                </div>
-                <div className="trf-logistics-field"><div className="trf-lf-label">Llegada estimada</div><div className="trf-lf-value">{formatDate(viewTransfer.estimatedArrivalDate)}</div></div>
-                <div className="trf-logistics-field"><div className="trf-lf-label">Llegada real</div><div className="trf-lf-value">{formatDateTime(viewTransfer.actualArrivalDate)}</div></div>
-              </div>
-
-              <Stepper transfer={viewTransfer} />
-
-              <div className="trf-lines-table" style={{ marginTop: '16px' }}>
-                <table>
-                  <thead>
-                    <tr><th>Producto</th><th>Cant. solicitada</th><th>Cant. despachada</th><th>Cant. recibida</th><th>Diferencia</th></tr>
-                  </thead>
-                  <tbody>
-                    {viewTransfer.items.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.productName}<span className="text-muted mono" style={{ fontSize: '11px', display: 'block' }}>{item.productSku}</span></td>
-                        <td className="mono">{item.requestedQuantity}</td>
-                        <td className="mono text-muted">{item.shippedQuantity}</td>
-                        <td className="mono text-muted">{item.receivedQuantity}</td>
-                        <td className="mono" style={{ color: item.difference > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>{item.difference}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             </div>
           )}
