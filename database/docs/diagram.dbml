@@ -4,6 +4,8 @@
 // 3.4 Transferencias, 3.5 Logística. Funcionalidad adicional (sección 4):
 // alertas inteligentes de stock (stock_alerts). El módulo de reportes
 // exportables (también elegido) no requiere tablas nuevas.
+//
+// Orden jerárquico: tablas maestras primero, luego cabeceras, luego detalle.
 
 Project inventory_system {
   database_type: 'PostgreSQL'
@@ -67,9 +69,9 @@ Enum alert_status {
   resolved
 }
 
-// ---------------------------------------------------------------------
-// Sucursales y usuarios
-// ---------------------------------------------------------------------
+// =======================================================================
+// TABLAS MAESTRAS
+// =======================================================================
 
 Table branches {
   id          bigint    [pk, increment]
@@ -111,25 +113,6 @@ Table users {
   Note: 'Tabla maestra'
 }
 
-Table password_reset_tokens {
-  id          bigint      [pk, increment]
-  user_id     bigint      [not null, ref: > users.id]
-  token_hash  text        [not null, unique]
-  expires_at  timestamptz [not null]
-  used_at     timestamptz
-  created_at  timestamptz [not null, default: `now()`]
-
-  indexes {
-    user_id
-  }
-
-  Note: 'Detalle — token de un solo uso para recuperación de contraseña por email'
-}
-
-// ---------------------------------------------------------------------
-// Catálogo de productos
-// ---------------------------------------------------------------------
-
 Table product_categories {
   id          bigint  [pk, increment]
   name        varchar [not null, unique]
@@ -165,25 +148,30 @@ Table products {
   Note: 'Tabla maestra'
 }
 
-Table product_units {
-  id                 bigint  [pk, increment]
-  product_id         bigint  [not null, ref: > products.id]
-  unit_id            bigint  [not null, ref: > units_of_measure.id]
-  conversion_factor  numeric [not null, note: 'Relativo a la unidad base del producto']
-  is_purchase_unit   boolean [not null, default: false]
-  is_sale_unit       boolean [not null, default: false]
+Table suppliers {
+  id           bigint  [pk, increment]
+  name         varchar [not null]
+  tax_id       varchar [unique]
+  contact_name varchar
+  phone        varchar
+  email        varchar
+  address      text
+  active       boolean [not null, default: true]
+  created_at   timestamptz [not null, default: `now()`]
 
-  indexes {
-    (product_id, unit_id) [unique]
-    product_id
-  }
-
-  Note: 'Tabla de detalle de products'
+  Note: 'Tabla maestra'
 }
 
-// ---------------------------------------------------------------------
-// Inventario y movimientos (3.1)
-// ---------------------------------------------------------------------
+Table price_lists {
+  id          bigint  [pk, increment]
+  name        varchar [not null]
+  description text
+  active      boolean [not null, default: true]
+  start_date  date
+  end_date    date
+
+  Note: 'Tabla maestra; CHECK end_date >= start_date cuando ambas fechas están definidas'
+}
 
 Table inventory {
   id                     bigint  [pk, increment]
@@ -202,6 +190,148 @@ Table inventory {
   }
 
   Note: 'Tabla maestra (estado actual, no histórico); costo promedio ponderado recalculado por el backend en cada ingreso con costo'
+}
+
+// =======================================================================
+// TABLAS DE CABECERA
+// =======================================================================
+
+Table purchase_orders {
+  id                 bigint                 [pk, increment]
+  order_number       varchar                [not null, unique]
+  supplier_id        bigint                 [not null, ref: > suppliers.id]
+  branch_id          bigint                 [not null, ref: > branches.id]
+  status             purchase_order_status  [not null, default: 'draft']
+  order_date         timestamptz            [not null, default: `now()`]
+  payment_term_days  integer
+  subtotal           numeric                [not null, default: 0]
+  total_discount     numeric                [not null, default: 0]
+  total              numeric                [not null, default: 0]
+  created_by         bigint                 [not null, ref: > users.id]
+  created_at         timestamptz            [not null, default: `now()`]
+
+  indexes {
+    supplier_id
+    branch_id
+    status
+  }
+
+  Note: 'Tabla de cabecera'
+}
+
+Table purchase_receipts {
+  id                 bigint      [pk, increment]
+  purchase_order_id  bigint      [not null, ref: > purchase_orders.id]
+  receipt_date       timestamptz [not null, default: `now()`]
+  received_by        bigint      [not null, ref: > users.id]
+  is_complete        boolean     [not null, default: false]
+  notes              text
+
+  indexes {
+    purchase_order_id
+  }
+
+  Note: 'Tabla de cabecera'
+}
+
+Table sales {
+  id              bigint      [pk, increment]
+  sale_number     varchar     [not null, unique]
+  branch_id       bigint      [not null, ref: > branches.id]
+  price_list_id   bigint      [ref: > price_lists.id]
+  seller_id       bigint      [not null, ref: > users.id]
+  customer_name   varchar
+  sale_date       timestamptz [not null, default: `now()`]
+  subtotal        numeric     [not null, default: 0]
+  total_discount  numeric     [not null, default: 0]
+  total           numeric     [not null, default: 0]
+  status          sale_status [not null, default: 'confirmed']
+  created_at      timestamptz [not null, default: `now()`]
+
+  indexes {
+    (branch_id, sale_date)
+    seller_id
+    status
+  }
+
+  Note: 'Tabla de cabecera'
+}
+
+Table transfers {
+  id                       bigint            [pk, increment]
+  transfer_number          varchar           [not null, unique]
+  origin_branch_id         bigint            [not null, ref: > branches.id]
+  destination_branch_id    bigint            [not null, ref: > branches.id]
+  requested_by             bigint            [not null, ref: > users.id]
+  status                   transfer_status   [not null, default: 'requested']
+  urgency                  priority_level    [not null, default: 'medium']
+  route_priority           priority_level
+  carrier                  varchar
+  shipping_cost            numeric
+  request_date             timestamptz       [not null, default: `now()`]
+  estimated_ship_date      timestamptz
+  actual_ship_date         timestamptz
+  estimated_arrival_date   timestamptz
+  actual_arrival_date      timestamptz
+  created_at               timestamptz       [not null, default: `now()`]
+
+  indexes {
+    origin_branch_id
+    destination_branch_id
+    status
+    request_date
+  }
+
+  Note: 'Tabla de cabecera; flujo de 5 pasos: solicitud → preparación → envío → recepción completa/parcial (sección 3.4). CHECK origin_branch_id <> destination_branch_id'
+}
+
+// =======================================================================
+// TABLAS DE DETALLE
+// =======================================================================
+
+Table password_reset_tokens {
+  id          bigint      [pk, increment]
+  user_id     bigint      [not null, ref: > users.id]
+  token_hash  text        [not null, unique]
+  expires_at  timestamptz [not null]
+  used_at     timestamptz
+  created_at  timestamptz [not null, default: `now()`]
+
+  indexes {
+    user_id
+  }
+
+  Note: 'Detalle — token de un solo uso para recuperación de contraseña por email'
+}
+
+Table product_units {
+  id                 bigint  [pk, increment]
+  product_id         bigint  [not null, ref: > products.id]
+  unit_id            bigint  [not null, ref: > units_of_measure.id]
+  conversion_factor  numeric [not null, note: 'Relativo a la unidad base del producto']
+  is_purchase_unit   boolean [not null, default: false]
+  is_sale_unit       boolean [not null, default: false]
+
+  indexes {
+    (product_id, unit_id) [unique]
+    product_id
+  }
+
+  Note: 'Tabla de detalle de products'
+}
+
+Table price_list_items {
+  id             bigint  [pk, increment]
+  price_list_id  bigint  [not null, ref: > price_lists.id]
+  product_id     bigint  [not null, ref: > products.id]
+  price          numeric [not null]
+
+  indexes {
+    (price_list_id, product_id) [unique]
+    product_id
+  }
+
+  Note: 'Tabla de detalle de price_lists'
 }
 
 Table stock_alerts {
@@ -250,47 +380,6 @@ Table inventory_movements {
   Note: 'Tabla de detalle (bitácora); trazabilidad obligatoria: fecha, responsable, motivo y cantidad de cada ingreso/retiro'
 }
 
-// ---------------------------------------------------------------------
-// Compras (3.2)
-// ---------------------------------------------------------------------
-
-Table suppliers {
-  id           bigint  [pk, increment]
-  name         varchar [not null]
-  tax_id       varchar [unique]
-  contact_name varchar
-  phone        varchar
-  email        varchar
-  address      text
-  active       boolean [not null, default: true]
-  created_at   timestamptz [not null, default: `now()`]
-
-  Note: 'Tabla maestra'
-}
-
-Table purchase_orders {
-  id                 bigint                 [pk, increment]
-  order_number       varchar                [not null, unique]
-  supplier_id        bigint                 [not null, ref: > suppliers.id]
-  branch_id          bigint                 [not null, ref: > branches.id]
-  status             purchase_order_status  [not null, default: 'draft']
-  order_date         timestamptz            [not null, default: `now()`]
-  payment_term_days  integer
-  subtotal           numeric                [not null, default: 0]
-  total_discount     numeric                [not null, default: 0]
-  total              numeric                [not null, default: 0]
-  created_by         bigint                 [not null, ref: > users.id]
-  created_at         timestamptz            [not null, default: `now()`]
-
-  indexes {
-    supplier_id
-    branch_id
-    status
-  }
-
-  Note: 'Tabla de cabecera'
-}
-
 Table purchase_order_items {
   id                  bigint  [pk, increment]
   purchase_order_id   bigint  [not null, ref: > purchase_orders.id]
@@ -308,21 +397,6 @@ Table purchase_order_items {
   Note: 'Tabla de detalle de purchase_orders'
 }
 
-Table purchase_receipts {
-  id                 bigint      [pk, increment]
-  purchase_order_id  bigint      [not null, ref: > purchase_orders.id]
-  receipt_date       timestamptz [not null, default: `now()`]
-  received_by        bigint      [not null, ref: > users.id]
-  is_complete        boolean     [not null, default: false]
-  notes              text
-
-  indexes {
-    purchase_order_id
-  }
-
-  Note: 'Tabla de cabecera'
-}
-
 Table purchase_receipt_items {
   id                       bigint  [pk, increment]
   receipt_id               bigint  [not null, ref: > purchase_receipts.id]
@@ -335,58 +409,6 @@ Table purchase_receipt_items {
   }
 
   Note: 'Tabla de detalle de purchase_receipts'
-}
-
-// ---------------------------------------------------------------------
-// Ventas (3.3)
-// ---------------------------------------------------------------------
-
-Table price_lists {
-  id          bigint  [pk, increment]
-  name        varchar [not null]
-  description text
-  active      boolean [not null, default: true]
-  start_date  date
-  end_date    date
-
-  Note: 'Tabla maestra; CHECK end_date >= start_date cuando ambas fechas están definidas'
-}
-
-Table price_list_items {
-  id             bigint  [pk, increment]
-  price_list_id  bigint  [not null, ref: > price_lists.id]
-  product_id     bigint  [not null, ref: > products.id]
-  price          numeric [not null]
-
-  indexes {
-    (price_list_id, product_id) [unique]
-    product_id
-  }
-
-  Note: 'Tabla de detalle de price_lists'
-}
-
-Table sales {
-  id              bigint      [pk, increment]
-  sale_number     varchar     [not null, unique]
-  branch_id       bigint      [not null, ref: > branches.id]
-  price_list_id   bigint      [ref: > price_lists.id]
-  seller_id       bigint      [not null, ref: > users.id]
-  customer_name   varchar
-  sale_date       timestamptz [not null, default: `now()`]
-  subtotal        numeric     [not null, default: 0]
-  total_discount  numeric     [not null, default: 0]
-  total           numeric     [not null, default: 0]
-  status          sale_status [not null, default: 'confirmed']
-  created_at      timestamptz [not null, default: `now()`]
-
-  indexes {
-    (branch_id, sale_date)
-    seller_id
-    status
-  }
-
-  Note: 'Tabla de cabecera'
 }
 
 Table sale_items {
@@ -404,38 +426,6 @@ Table sale_items {
   }
 
   Note: 'Tabla de detalle de sales'
-}
-
-// ---------------------------------------------------------------------
-// Transferencias entre sucursales (3.4) y logística (3.5)
-// ---------------------------------------------------------------------
-
-Table transfers {
-  id                       bigint            [pk, increment]
-  transfer_number          varchar           [not null, unique]
-  origin_branch_id         bigint            [not null, ref: > branches.id]
-  destination_branch_id    bigint            [not null, ref: > branches.id]
-  requested_by             bigint            [not null, ref: > users.id]
-  status                   transfer_status   [not null, default: 'requested']
-  urgency                  priority_level    [not null, default: 'medium']
-  route_priority           priority_level
-  carrier                  varchar
-  shipping_cost            numeric
-  request_date             timestamptz       [not null, default: `now()`]
-  estimated_ship_date      timestamptz
-  actual_ship_date         timestamptz
-  estimated_arrival_date   timestamptz
-  actual_arrival_date      timestamptz
-  created_at               timestamptz       [not null, default: `now()`]
-
-  indexes {
-    origin_branch_id
-    destination_branch_id
-    status
-    request_date
-  }
-
-  Note: 'Tabla de cabecera; flujo de 5 pasos: solicitud → preparación → envío → recepción completa/parcial (sección 3.4). CHECK origin_branch_id <> destination_branch_id'
 }
 
 Table transfer_items {

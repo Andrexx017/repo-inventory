@@ -6,8 +6,6 @@
 -- (tabla stock_alerts + inventory.maximum_stock). El módulo de reportes
 -- exportables no requiere tablas nuevas — ver database/docs/decisions.md.
 --
--- Convención de idioma del proyecto: nombres de tablas/columnas en inglés;
--- comentarios y documentación en español.
 --
 -- Convención de clasificación: cada tabla se etiqueta según su rol en el modelo.
 --   [MAESTRA]   catálogo de referencia, independiente, no cuelga de un documento
