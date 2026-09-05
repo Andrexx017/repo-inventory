@@ -105,6 +105,24 @@ public class TransfersController : ControllerBase
             : Ok(transfer);
     }
 
+    // El Gerente de la sucursal DESTINO (+Admin) aprueba la solicitud que hizo
+    // su propio Operador — recién ahí la sucursal origen puede prepararla.
+    // El Operador queda afuera a propósito, mismo criterio que Approve en
+    // PurchaseOrdersController.
+    [HttpPost("{destinationBranchId:long}/{id:long}/approve")]
+    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.BranchManager)]
+    public async Task<ActionResult<TransferDto>> Approve(long destinationBranchId, long id)
+    {
+        var authResult = await _authorizationService.AuthorizeAsync(User, destinationBranchId, "SameBranch");
+        if (!authResult.Succeeded)
+        {
+            return Forbid();
+        }
+
+        var transfer = await _transferService.ApproveAsync(destinationBranchId, id, User.GetUserId());
+        return Ok(transfer);
+    }
+
     // RF-21: la sucursal ORIGEN confirma/ajusta la cantidad a enviar.
     [HttpPut("{originBranchId:long}/{id:long}/prepare")]
     [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.InventoryOperator)]

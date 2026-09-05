@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react';
 import AppShell from '../../../shared/components/AppShell';
 import { KpiModal, KpiModalTrigger } from '../../../shared/components/KpiModal';
+import { ConfirmModal } from '../../../shared/components/ConfirmModal';
 import {
   useTransfers,
   STATUS_LABELS,
@@ -159,6 +160,7 @@ export default function Transfers() {
     formError, formSuccess, handleCreateTransfer,
     isRequestModalOpen, openRequestModal, closeRequestModal,
     viewTransfer, openView, closeView,
+    approveError, handleApprove, canApprove,
     prepareTarget, prepareQuantities, setPrepareQuantity, prepareNotes, setPrepareNotes, prepareError,
     openPrepare, closePrepare, handleSubmitPrepare,
     shipTarget, carrier, setCarrier, estimatedDeliveryDate, setEstimatedDeliveryDate,
@@ -171,6 +173,7 @@ export default function Transfers() {
   } = useTransfers();
 
   const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
+  const [approveTarget, setApproveTarget] = useState(null);
 
   // transfersKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync)
   // — no se puede calcular desde `transfers` porque esa lista ahora está
@@ -312,13 +315,19 @@ export default function Transfers() {
                       <td>{t.originBranchName}</td>
                       <td>{t.destinationBranchName}</td>
                       <td><span className={`status-pill ${URGENCY_CLASSES[t.urgency]}`}>{URGENCY_LABELS[t.urgency]}</span></td>
-                      <td><span className={`status-pill ${STATUS_CLASSES[t.status]}`}>{STATUS_LABELS[t.status]}</span></td>
+                      <td>
+                        <span className={`status-pill ${STATUS_CLASSES[t.status]}`}>{STATUS_LABELS[t.status]}</span>
+                        {t.status === 'requested' && t.approvedAt && (
+                          <span className="text-success" style={{ fontSize: '11px', marginLeft: '6px' }}>· Aprobada</span>
+                        )}
+                      </td>
                       <td className="mono text-muted">{formatDate(t.requestDate)}</td>
                       <td className="text-muted">{t.carrier || '—'}</td>
                       <td className="mono" style={{ color: delay.color }}>{delay.text}</td>
                       <td>
                         <div className="trf-actions">
                           <button type="button" className="trf-action-view" onClick={() => openView(t)}>Ver detalle</button>
+                          {canApprove(t) && <button type="button" className="trf-action-approve" onClick={() => setApproveTarget(t)}>Aprobar</button>}
                           {canPrepare(t) && <button type="button" className="trf-action-prepare" onClick={() => openPrepare(t)}>Preparar</button>}
                           {canShip(t) && <button type="button" className="trf-action-ship" onClick={() => openShip(t)}>Despachar</button>}
                           {canReceiveTransfer(t) && <button type="button" className="trf-action-receive" onClick={() => openReceive(t)}>Recibir</button>}
@@ -350,6 +359,24 @@ export default function Transfers() {
               Siguiente
             </button>
           </div>
+
+          {approveError && <p className="form-error">{approveError}</p>}
+
+          <ConfirmModal
+            open={!!approveTarget}
+            title="Aprobar transferencia"
+            message={
+              approveTarget
+                ? `¿Seguro que querés aprobar la transferencia ${approveTarget.transferNumber} (${approveTarget.originBranchName} → ${approveTarget.destinationBranchName})? Una vez aprobada, la sucursal origen va a poder prepararla.`
+                : ''
+            }
+            confirmLabel="Aprobar"
+            onConfirm={() => {
+              handleApprove(approveTarget);
+              setApproveTarget(null);
+            }}
+            onCancel={() => setApproveTarget(null)}
+          />
 
           {viewTransfer && (
             <div className="modal-overlay" onClick={closeView}>

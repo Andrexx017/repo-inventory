@@ -22,6 +22,10 @@ export function createTransfer(destinationBranchId, transfer) {
   return postJson(`/api/transfers/${destinationBranchId}`, transfer);
 }
 
+export function approveTransfer(destinationBranchId, id) {
+  return postJson(`/api/transfers/${destinationBranchId}/${id}/approve`, {});
+}
+
 export function prepareTransfer(originBranchId, id, prepare) {
   return putJson(`/api/transfers/${originBranchId}/${id}/prepare`, prepare);
 }

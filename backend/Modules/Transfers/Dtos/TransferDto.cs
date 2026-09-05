@@ -8,6 +8,8 @@ public record TransferDto(
     long DestinationBranchId,
     string DestinationBranchName,
     long RequestedBy,
+    long? ApprovedBy,
+    DateTimeOffset? ApprovedAt,
     string Status,
     string Urgency,
     string? RoutePriority,

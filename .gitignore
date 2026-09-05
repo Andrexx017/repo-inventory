@@ -1,5 +1,3 @@
-screenshot/
-diagrams/
 requirements/
 .env
 backend/appsettings.Development.json

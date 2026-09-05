@@ -168,6 +168,45 @@ public class TransferService : ITransferService
         return transfer is null ? null : ToDto(transfer);
     }
 
+    public async Task<TransferDto> ApproveAsync(long destinationBranchId, long id, long actingUserId)
+    {
+        var transfer = await _transfers.GetByIdAsync(id)
+            ?? throw new DomainException($"La transferencia {id} no existe.");
+
+        if (transfer.DestinationBranchId != destinationBranchId)
+        {
+            throw new DomainException(
+                $"La transferencia {id} no tiene como destino la sucursal {destinationBranchId}.");
+        }
+
+        if (transfer.Status != "requested")
+        {
+            throw new DomainException(
+                $"Solo se puede aprobar una transferencia en estado 'requested' (estado actual: '{transfer.Status}').");
+        }
+
+        if (transfer.ApprovedAt is not null)
+        {
+            throw new DomainException("Esta transferencia ya fue aprobada.");
+        }
+
+        transfer.ApprovedBy = actingUserId;
+        transfer.ApprovedAt = DateTimeOffset.UtcNow;
+
+        transfer.Events.Add(new TransferEvent
+        {
+            TransferId = transfer.Id,
+            Status = "requested",
+            EventDate = DateTimeOffset.UtcNow,
+            Notes = "Aprobada por el gerente de la sucursal destino.",
+            RecordedBy = actingUserId,
+        });
+
+        await _transfers.SaveChangesAsync();
+
+        return ToDto(transfer);
+    }
+
     public async Task<TransferDto> PrepareAsync(
         long originBranchId, long id, PrepareTransferDto request, long actingUserId)
     {
@@ -183,6 +222,12 @@ public class TransferService : ITransferService
         {
             throw new DomainException(
                 $"Solo se puede preparar una transferencia en estado 'requested' (estado actual: '{transfer.Status}').");
+        }
+
+        if (transfer.ApprovedAt is null)
+        {
+            throw new DomainException(
+                "La transferencia debe ser aprobada por el gerente de la sucursal destino antes de prepararla.");
         }
 
         // RF-21 exige revisar CADA línea solicitada — una línea sin confirmar
@@ -532,6 +577,8 @@ public class TransferService : ITransferService
         transfer.DestinationBranchId,
         transfer.DestinationBranch.Name,
         transfer.RequestedBy,
+        transfer.ApprovedBy,
+        transfer.ApprovedAt,
         transfer.Status,
         transfer.Urgency,
         transfer.RoutePriority,

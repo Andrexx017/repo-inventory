@@ -321,6 +321,13 @@ CREATE TABLE transfers (
     origin_branch_id         BIGINT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
     destination_branch_id    BIGINT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
     requested_by             BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    -- Aprobación del gerente de la sucursal DESTINO (la misma que solicita) —
+    -- gatea el paso a "preparing" en TransferService.PrepareAsync. Sin estado
+    -- propio en el CHECK de más abajo a propósito: sigue siendo 'requested'
+    -- hasta que la sucursal origen la prepara, solo que ahora exige
+    -- approved_at IS NOT NULL primero.
+    approved_by              BIGINT REFERENCES users(id) ON DELETE RESTRICT,
+    approved_at              TIMESTAMPTZ,
     status                   VARCHAR(20) NOT NULL DEFAULT 'requested' CHECK (status IN (
         'requested', 'preparing', 'in_transit',
         'fully_received', 'partially_received', 'cancelled'

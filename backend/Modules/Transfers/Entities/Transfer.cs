@@ -11,6 +11,8 @@ public class Transfer
     public long DestinationBranchId { get; set; }
     public Branch DestinationBranch { get; set; } = null!;
     public long RequestedBy { get; set; }
+    public long? ApprovedBy { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
     public string Status { get; set; } = null!;
     public string Urgency { get; set; } = null!;
     public string? RoutePriority { get; set; }

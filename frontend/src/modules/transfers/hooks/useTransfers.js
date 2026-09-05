@@ -8,6 +8,7 @@ import {
   getTransfersKpiSummary,
   getTransferById,
   createTransfer,
+  approveTransfer,
   prepareTransfer,
   shipTransfer,
   receiveTransfer,
@@ -70,6 +71,10 @@ export function useTransfers() {
   const canRequestTransfer = isInventoryOperator || isGeneralAdmin || isBranchManager;
   const canManageOrigin = isInventoryOperator || isGeneralAdmin;
   const canManageDestination = isBranchManager || isGeneralAdmin || isInventoryOperator;
+  // El Gerente (+Admin) de la sucursal destino aprueba la solicitud de su
+  // propio Operador antes de que el origen la prepare — el Operador no
+  // aprueba, mismo criterio que canApproveRole en usePurchases.js.
+  const canApproveTransfer = isBranchManager || isGeneralAdmin;
 
   const [branches, setBranches] = useState([]);
   const [branchId, setBranchId] = useState(user?.branchId ? String(user.branchId) : '');
@@ -93,6 +98,7 @@ export function useTransfers() {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
   const [viewTransfer, setViewTransfer] = useState(null);
+  const [approveError, setApproveError] = useState('');
 
   const [prepareTarget, setPrepareTarget] = useState(null);
   const [prepareQuantities, setPrepareQuantities] = useState({});
@@ -409,8 +415,32 @@ export function useTransfers() {
     }
   }
 
+  async function handleApprove(transfer) {
+    setApproveError('');
+    try {
+      await approveTransfer(branchId, transfer.id);
+      await loadTransfers();
+    } catch (err) {
+      setApproveError(err.message || 'No se pudo aprobar la transferencia.');
+    }
+  }
+
+  function canApprove(transfer) {
+    return (
+      canApproveTransfer &&
+      transfer.status === 'requested' &&
+      !transfer.approvedAt &&
+      transfer.destinationBranchId === Number(branchId)
+    );
+  }
+
   function canPrepare(transfer) {
-    return canManageOrigin && transfer.status === 'requested' && transfer.originBranchId === Number(branchId);
+    return (
+      canManageOrigin &&
+      transfer.status === 'requested' &&
+      Boolean(transfer.approvedAt) &&
+      transfer.originBranchId === Number(branchId)
+    );
   }
 
   function canShip(transfer) {
@@ -461,6 +491,10 @@ export function useTransfers() {
     viewTransfer,
     openView,
     closeView,
+
+    approveError,
+    handleApprove,
+    canApprove,
 
     prepareTarget,
     prepareQuantities,

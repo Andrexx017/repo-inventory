@@ -20,6 +20,10 @@ public interface ITransferService
     Task<TransfersKpiDto> GetKpiSummaryAsync(long branchId);
     Task<TransferDto?> GetByIdAsync(long id);
 
+    // El Gerente (+Admin) de la sucursal DESTINO aprueba la solicitud de su
+    // propio Operador antes de que la sucursal origen pueda prepararla.
+    Task<TransferDto> ApproveAsync(long destinationBranchId, long id, long actingUserId);
+
     // RF-21: la sucursal ORIGEN revisa disponibilidad y confirma/ajusta cuánto
     // va a despachar de cada línea.
     Task<TransferDto> PrepareAsync(long originBranchId, long id, PrepareTransferDto request, long actingUserId);
