@@ -57,12 +57,8 @@ export default function AppShell({ title, children }) {
 
             <aside className={navOpen ? 'sidebar sidebar-open' : 'sidebar'}>
                 <div className="sidebar-brand">
-                    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2 3 7v10l9 5 9-5V7z" />
-                        <path d="M3 7l9 5 9-5" />
-                        <path d="M12 12v10" />
-                    </svg>
-                    <span className="sidebar-brand-name">INVENTARIO</span>
+                    <img src="/logo-icon.png" width="22" height="22" alt="Sucursalia" className="sidebar-brand-mark" />
+                    <span className="sidebar-brand-name">SUCURSALIA</span>
 
                     <button
                         type="button"

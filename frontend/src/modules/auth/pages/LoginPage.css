@@ -44,6 +44,17 @@
     gap: 28px;
 }
 
+.login-hero-logo {
+    width: 100%;
+    max-width: 210px;
+    height: auto;
+    filter: drop-shadow(0 14px 32px rgba(0, 0, 0, 0.35));
+}
+
+[data-theme='light'] .login-hero-logo {
+    filter: drop-shadow(0 10px 24px rgba(20, 22, 35, 0.12));
+}
+
 .login-network-line {
     stroke: var(--border);
     stroke-width: 1.5;

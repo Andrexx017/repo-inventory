@@ -24,15 +24,17 @@ export default function LoginPage() {
 
             <div className="login-panel">
                 <div className="login-brand">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2 3 7v10l9 5 9-5V7z" />
-                        <path d="M3 7l9 5 9-5" />
-                        <path d="M12 12v10" />
-                    </svg>
-                    <span className="login-brand-name">Inventario</span>
+                    <img src="/logo-icon.png" width="20" height="20" alt="Sucursalia" />
+                    <span className="login-brand-name">SUCURSALIA</span>
                 </div>
 
                 <div className="login-network">
+                    <img
+                        src="/logo-full.png"
+                        alt="Sucursalia — Tu red de productos de confianza"
+                        className="login-hero-logo"
+                    />
+
                     <svg width="380" height="280" viewBox="0 0 380 280">
                         <line x1="190" y1="140" x2="70" y2="50" className="login-network-line" />
                         <line x1="190" y1="140" x2="310" y2="50" className="login-network-line" />
@@ -55,7 +57,7 @@ export default function LoginPage() {
 
                 <div className="login-network-status">
                     <span className="login-status-dot" />
-                    Sistema de Inventario Multi-Sucursal
+                    Sucursalia · Sistema Multi-Sucursal
                 </div>
             </div>
 
