@@ -26,6 +26,10 @@ export function approveTransfer(destinationBranchId, id) {
   return postJson(`/api/transfers/${destinationBranchId}/${id}/approve`, {});
 }
 
+export function cancelTransfer(branchId, id) {
+  return postJson(`/api/transfers/${branchId}/${id}/cancel`, {});
+}
+
 export function prepareTransfer(originBranchId, id, prepare) {
   return putJson(`/api/transfers/${originBranchId}/${id}/prepare`, prepare);
 }

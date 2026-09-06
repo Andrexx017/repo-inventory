@@ -105,3 +105,190 @@ INSERT INTO users (branch_id, role_id, name, email, password_hash) VALUES
         (SELECT id FROM roles WHERE code = 'inventory_operator'),
         'Julián Gómez', 'julian.gomez@inventory.test',
         'AQAAAAIAAYagAAAAEKc4IADwECgyZmzBin4/EDyiT4vJE9XXEuyxftdLmoXYQEwl1fpEYcK2QmXwOozsmw==');
+
+-- ---------------------------------------------------------------------
+-- Inventario inicial por sucursal (RF-06 a RF-11)
+--
+-- CAL-01 se deja deliberadamente sin PAN-001/JAB-001: esos dos productos
+-- nacen recién con la recepción de la orden de compra OC-000002 más abajo,
+-- para poder probar en vivo el flujo real "get-or-create" de
+-- PurchaseReceiptService (una fila de inventory que no existe todavía).
+-- BOG-01/CAF-001 y MED-01/ARR-001 ya arrancan por debajo o justo en su
+-- minimum_stock, a propósito, para poder disparar una alerta de stock bajo
+-- (RF-34) con el primer movimiento que se registre sobre ellos en las
+-- pruebas manuales.
+-- ---------------------------------------------------------------------
+
+INSERT INTO inventory (branch_id, product_id, current_quantity, minimum_stock, maximum_stock, weighted_average_cost)
+SELECT b.id, p.id, v.qty, v.min_stock, v.max_stock, v.wac
+FROM (VALUES
+    ('BOG-01', 'CAF-001', 40::numeric,  10::numeric, 100::numeric, 15000.00::numeric),
+    ('BOG-01', 'ARR-001',  5,  10, 200,  3200.00),
+    ('BOG-01', 'PNL-001', 60,  15, NULL,  4500.00),
+    ('BOG-01', 'PAN-001', 25,  10,  80,  6500.00),
+    ('BOG-01', 'LEC-001', 30,  10, 100,  4200.00),
+    ('BOG-01', 'JAB-001', 50,  10, 100,  3900.00),
+    ('MED-01', 'CAF-001', 20,  10, 100, 15000.00),
+    ('MED-01', 'ARR-001', 80,  10, 100,  3200.00),
+    ('MED-01', 'PNL-001', 10,  10, NULL,  4500.00),
+    ('MED-01', 'PAN-001', 15,  10,  80,  6500.00),
+    ('MED-01', 'LEC-001',  5,  10, 100,  4200.00),
+    ('MED-01', 'JAB-001', 40,  10, 100,  3900.00),
+    ('CAL-01', 'CAF-001', 15,  10, 100, 15000.00),
+    ('CAL-01', 'ARR-001', 10,  10, 100,  3200.00),
+    ('CAL-01', 'LEC-001', 12,  10, 100,  4200.00)
+) AS v(branch_code, sku, qty, min_stock, max_stock, wac)
+JOIN branches b ON b.code = v.branch_code
+JOIN products p ON p.sku = v.sku;
+
+-- Movimiento de apertura por cada fila de arriba (RF-11: ninguna fila de
+-- inventory sin su historial en inventory_movements). BOG-01/CAF-001 y
+-- MED-01/ARR-001 abren con 5 unidades más de las que quedan en `inventory`
+-- — la diferencia es exactamente la venta que se registra más abajo
+-- (VTA-000001/VTA-000002), para que el historial de movimientos siga
+-- sumando al mismo total que ya quedó en la tabla `inventory`.
+INSERT INTO inventory_movements (
+    branch_id, product_id, movement_type, quantity, unit_cost, reason,
+    responsible_user_id, reference_type, reference_id, movement_date, created_at
+)
+SELECT b.id, p.id, 'adjustment_in', v.qty, NULLIF(v.wac, 0), 'Saldo inicial de apertura (datos de prueba)',
+    (SELECT id FROM users WHERE email = 'admin@inventory.test'),
+    'manual_adjustment', NULL, now() - interval '30 days', now() - interval '30 days'
+FROM (VALUES
+    ('BOG-01', 'CAF-001', 45::numeric, 15000.00::numeric),
+    ('BOG-01', 'ARR-001',  5,  3200.00),
+    ('BOG-01', 'PNL-001', 60,  4500.00),
+    ('BOG-01', 'PAN-001', 25,  6500.00),
+    ('BOG-01', 'LEC-001', 30,  4200.00),
+    ('BOG-01', 'JAB-001', 50,  3900.00),
+    ('MED-01', 'CAF-001', 20, 15000.00),
+    ('MED-01', 'ARR-001', 85,  3200.00),
+    ('MED-01', 'PNL-001', 10,  4500.00),
+    ('MED-01', 'PAN-001', 15,  6500.00),
+    ('MED-01', 'LEC-001',  5,  4200.00),
+    ('MED-01', 'JAB-001', 40,  3900.00),
+    ('CAL-01', 'CAF-001', 15, 15000.00),
+    ('CAL-01', 'ARR-001', 10,  3200.00),
+    ('CAL-01', 'LEC-001', 12,  4200.00)
+) AS v(branch_code, sku, qty, wac)
+JOIN branches b ON b.code = v.branch_code
+JOIN products p ON p.sku = v.sku;
+
+-- ---------------------------------------------------------------------
+-- Ventas de prueba (módulo Ventas, RF-16 a RF-19)
+-- Una sin lista de precios (precio de referencia) y otra con la Lista
+-- Mayorista, para ejercitar los dos caminos de resolución de precio de
+-- SaleService.CreateAsync. Ambas descuentan stock de las filas de arriba.
+-- ---------------------------------------------------------------------
+
+INSERT INTO sales (sale_number, branch_id, price_list_id, seller_id, customer_name, sale_date, subtotal, total_discount, total, status) VALUES
+    ('VTA-000001',
+        (SELECT id FROM branches WHERE code = 'BOG-01'),
+        NULL,
+        (SELECT id FROM users WHERE email = 'diana.torres@inventory.test'),
+        'Cliente Mostrador', now() - interval '5 days',
+        75000.00, 0.00, 75000.00, 'confirmed'),
+    ('VTA-000002',
+        (SELECT id FROM branches WHERE code = 'MED-01'),
+        (SELECT id FROM price_lists WHERE name = 'Lista Mayorista'),
+        (SELECT id FROM users WHERE email = 'julian.gomez@inventory.test'),
+        'Supermercado El Ahorro', now() - interval '2 days',
+        13600.00, 0.00, 13600.00, 'confirmed');
+
+INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, discount_pct) VALUES
+    ((SELECT id FROM sales WHERE sale_number = 'VTA-000001'),
+        (SELECT id FROM products WHERE sku = 'CAF-001'), 5, 15000.00, 0),
+    ((SELECT id FROM sales WHERE sale_number = 'VTA-000002'),
+        (SELECT id FROM products WHERE sku = 'ARR-001'), 5, 2720.00, 0);
+
+-- Movimiento de salida que corresponde a cada venta de arriba (mismo patrón
+-- que SaleService.CreateAsync: unit_cost NULL, reference_type='sale').
+INSERT INTO inventory_movements (
+    branch_id, product_id, movement_type, quantity, unit_cost, reason,
+    responsible_user_id, reference_type, reference_id, movement_date, created_at
+) VALUES
+    ((SELECT id FROM branches WHERE code = 'BOG-01'), (SELECT id FROM products WHERE sku = 'CAF-001'),
+        'sale_out', 5, NULL, 'Venta VTA-000001',
+        (SELECT id FROM users WHERE email = 'diana.torres@inventory.test'),
+        'sale', (SELECT id FROM sales WHERE sale_number = 'VTA-000001'),
+        now() - interval '5 days', now() - interval '5 days'),
+    ((SELECT id FROM branches WHERE code = 'MED-01'), (SELECT id FROM products WHERE sku = 'ARR-001'),
+        'sale_out', 5, NULL, 'Venta VTA-000002',
+        (SELECT id FROM users WHERE email = 'julian.gomez@inventory.test'),
+        'sale', (SELECT id FROM sales WHERE sale_number = 'VTA-000002'),
+        now() - interval '2 days', now() - interval '2 days');
+
+-- ---------------------------------------------------------------------
+-- Órdenes de compra de prueba (módulo Compras, RF-12 a RF-15)
+--
+-- Ambas nacen 'confirmed' directo (el Operador no necesita aprobación del
+-- Gerente, ver PurchaseOrderService.CreateAsync) y ninguna queda
+-- 'fully_received' a propósito, para poder probar en vivo los botones
+-- "Cancelar"/"Recibir" en vez de mostrar el resultado ya consumado —
+-- OC-000002, en particular, sirve para ver el cálculo de costo promedio
+-- ponderado (RF-15) ejecutándose sobre productos que CAL-01 todavía no
+-- tiene en `inventory`.
+-- ---------------------------------------------------------------------
+
+INSERT INTO purchase_orders (order_number, supplier_id, branch_id, status, order_date, payment_term_days, subtotal, total_discount, total, created_by, decided_by, decided_at) VALUES
+    ('OC-000001',
+        (SELECT id FROM suppliers WHERE name = 'Distribuidora La Sabana S.A.S.'),
+        (SELECT id FROM branches WHERE code = 'BOG-01'),
+        'confirmed', now() - interval '3 days', 30,
+        420000.00, 0.00, 420000.00,
+        (SELECT id FROM users WHERE email = 'admin@inventory.test'), NULL, NULL),
+    ('OC-000002',
+        (SELECT id FROM suppliers WHERE name = 'Alimentos del Valle Ltda.'),
+        (SELECT id FROM branches WHERE code = 'CAL-01'),
+        'confirmed', now() - interval '1 day', 15,
+        450000.00, 0.00, 450000.00,
+        (SELECT id FROM users WHERE email = 'admin@inventory.test'), NULL, NULL);
+
+INSERT INTO purchase_order_items (purchase_order_id, product_id, quantity, unit_price, discount_pct) VALUES
+    ((SELECT id FROM purchase_orders WHERE order_number = 'OC-000001'),
+        (SELECT id FROM products WHERE sku = 'CAF-001'), 30, 14000.00, 0),
+    ((SELECT id FROM purchase_orders WHERE order_number = 'OC-000002'),
+        (SELECT id FROM products WHERE sku = 'PAN-001'), 40, 6000.00, 0),
+    ((SELECT id FROM purchase_orders WHERE order_number = 'OC-000002'),
+        (SELECT id FROM products WHERE sku = 'JAB-001'), 60, 3500.00, 0);
+
+-- ---------------------------------------------------------------------
+-- Transferencias de prueba (módulo Transferencias, RF-20 a RF-28)
+--
+-- Ninguna avanza más allá de 'requested' a propósito, mismo criterio que
+-- las órdenes de compra: TR-000001 queda sin aprobar (prueba el botón
+-- "Aprobar") y TR-000002 ya aprobada (prueba "Preparar" en la sucursal
+-- origen) — despachar/recibir se prueban en vivo, no se pre-cargan, para no
+-- tener que descontar/sumar stock a mano en este script.
+-- ---------------------------------------------------------------------
+
+INSERT INTO transfers (transfer_number, origin_branch_id, destination_branch_id, requested_by, approved_by, approved_at, status, urgency, request_date) VALUES
+    ('TR-000001',
+        (SELECT id FROM branches WHERE code = 'MED-01'),
+        (SELECT id FROM branches WHERE code = 'CAL-01'),
+        (SELECT id FROM users WHERE email = 'admin@inventory.test'),
+        NULL, NULL,
+        'requested', 'medium', now() - interval '1 day'),
+    ('TR-000002',
+        (SELECT id FROM branches WHERE code = 'BOG-01'),
+        (SELECT id FROM branches WHERE code = 'MED-01'),
+        (SELECT id FROM users WHERE email = 'julian.gomez@inventory.test'),
+        (SELECT id FROM users WHERE email = 'admin@inventory.test'), now() - interval '6 hours',
+        'requested', 'high', now() - interval '1 day');
+
+INSERT INTO transfer_items (transfer_id, product_id, requested_quantity) VALUES
+    ((SELECT id FROM transfers WHERE transfer_number = 'TR-000001'),
+        (SELECT id FROM products WHERE sku = 'CAF-001'), 10),
+    ((SELECT id FROM transfers WHERE transfer_number = 'TR-000002'),
+        (SELECT id FROM products WHERE sku = 'PNL-001'), 20);
+
+INSERT INTO transfer_events (transfer_id, status, event_date, notes, recorded_by) VALUES
+    ((SELECT id FROM transfers WHERE transfer_number = 'TR-000001'),
+        'requested', now() - interval '1 day', NULL,
+        (SELECT id FROM users WHERE email = 'admin@inventory.test')),
+    ((SELECT id FROM transfers WHERE transfer_number = 'TR-000002'),
+        'requested', now() - interval '1 day', NULL,
+        (SELECT id FROM users WHERE email = 'julian.gomez@inventory.test')),
+    ((SELECT id FROM transfers WHERE transfer_number = 'TR-000002'),
+        'requested', now() - interval '6 hours', 'Aprobada por el gerente de la sucursal destino.',
+        (SELECT id FROM users WHERE email = 'admin@inventory.test'));

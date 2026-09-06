@@ -17,6 +17,8 @@ public class PurchaseOrder
     public decimal TotalDiscount { get; set; }
     public decimal Total { get; set; }
     public long CreatedBy { get; set; }
+    public long? DecidedBy { get; set; }
+    public DateTimeOffset? DecidedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
     public ICollection<PurchaseOrderItem> Items { get; set; } = new List<PurchaseOrderItem>();

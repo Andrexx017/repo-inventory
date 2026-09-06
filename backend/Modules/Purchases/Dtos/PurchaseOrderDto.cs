@@ -14,6 +14,8 @@ public record PurchaseOrderDto(
     decimal TotalDiscount,
     decimal Total,
     long CreatedBy,
+    long? DecidedBy,
+    DateTimeOffset? DecidedAt,
     DateTimeOffset CreatedAt,
     IReadOnlyList<PurchaseOrderItemDto> Items
 );

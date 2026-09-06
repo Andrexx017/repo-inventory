@@ -224,6 +224,11 @@ CREATE TABLE purchase_orders (
     total_discount     NUMERIC(14,2) NOT NULL DEFAULT 0,
     total              NUMERIC(14,2) NOT NULL DEFAULT 0,
     created_by         BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    -- Quién aprobó/canceló la orden y cuándo — sin esto no había forma de avisarle
+    -- al Operador que la creó (created_by) que su orden ya fue resuelta, ni de
+    -- distinguir "recién decidida" (para notificar) de una decisión vieja.
+    decided_by         BIGINT REFERENCES users(id) ON DELETE RESTRICT,
+    decided_at         TIMESTAMPTZ,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -341,6 +346,17 @@ CREATE TABLE transfers (
     actual_ship_date         TIMESTAMPTZ,
     estimated_arrival_date   TIMESTAMPTZ,
     actual_arrival_date      TIMESTAMPTZ,
+    -- Tratamiento elegido en ReceiveAsync cuando la recepción queda con
+    -- faltante (RF-24) — antes solo vivía como texto suelto dentro de
+    -- transfer_events.notes, sin forma de consultarlo ni mostrarlo en el
+    -- detalle sin parsear ese texto.
+    shortage_treatment       VARCHAR(15) CHECK (shortage_treatment IS NULL OR shortage_treatment IN ('resend', 'adjustment', 'claim')),
+    -- Quién denegó/canceló la transferencia y cuándo — sin esto no había
+    -- forma de avisarle a quien la solicitó (requested_by) que fue denegada
+    -- (o cancelada ya aprobada), ni de acotar esa notificación a "recién
+    -- pasó" (mismo criterio que decided_by/decided_at en purchase_orders).
+    cancelled_by             BIGINT REFERENCES users(id) ON DELETE RESTRICT,
+    cancelled_at             TIMESTAMPTZ,
     created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK (origin_branch_id <> destination_branch_id)
 );

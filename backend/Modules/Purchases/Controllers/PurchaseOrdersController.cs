@@ -10,10 +10,12 @@ namespace Inventory.Modules.Purchases.Controllers;
 
 // Mismo criterio de roles que SuppliersController — branch_manager/inventory_operator
 // más general_admin (RF-04: "visibilidad y permisos totales", ver nota ahí). El
-// [Authorize] de clase acepta los tres; Create/Approve/CreateReceipt lo acotan más
-// (ver abajo), combinándose con AND (comentario ya explicado en ProductsController.cs) —
-// por eso esos tres también necesitan sumar GeneralAdmin explícitamente, no alcanza
-// con que la clase lo acepte.
+// [Authorize] de clase acepta los tres; Create/CreateReceipt lo acotan más (ver abajo),
+// combinándose con AND (comentario ya explicado en ProductsController.cs) — por eso
+// esos dos también necesitan sumar GeneralAdmin explícitamente, no alcanza con que la
+// clase lo acepte. Sin aprobación del Gerente: el Operador crea la orden ya
+// 'confirmed' (ver PurchaseOrderService.CreateAsync) — decisión de negocio explícita,
+// no queda ningún paso intermedio de "borrador" en este flujo.
 [ApiController]
 [Route("api/purchase-orders")]
 [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.BranchManager + "," + RoleCodes.InventoryOperator)]
@@ -98,20 +100,6 @@ public class PurchaseOrdersController : ControllerBase
         return order is null || order.BranchId != branchId ? NotFound() : Ok(order);
     }
 
-    // UC-09: aprobación del Gerente de sucursal (más general_admin, RF-04).
-    [HttpPost("{branchId:long}/{id:long}/approve")]
-    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.BranchManager)]
-    public async Task<ActionResult<PurchaseOrderDto>> Approve(long branchId, long id)
-    {
-        var authResult = await _authorizationService.AuthorizeAsync(User, branchId, "SameBranch");
-        if (!authResult.Succeeded)
-        {
-            return Forbid();
-        }
-
-        return Ok(await _purchaseOrderService.ApproveAsync(id));
-    }
-
     [HttpPost("{branchId:long}/{id:long}/cancel")]
     public async Task<ActionResult<PurchaseOrderDto>> Cancel(long branchId, long id)
     {
@@ -121,7 +109,7 @@ public class PurchaseOrdersController : ControllerBase
             return Forbid();
         }
 
-        return Ok(await _purchaseOrderService.CancelAsync(id));
+        return Ok(await _purchaseOrderService.CancelAsync(id, User.GetUserId()));
     }
 
     // UC-17: confirmar recepción de compra — el Operador de inventario (más

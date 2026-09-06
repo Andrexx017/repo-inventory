@@ -24,6 +24,9 @@ public record TransferDto(
     // Positivo = llegó más tarde de lo estimado, negativo = más temprano, 0 = a tiempo.
     // Null mientras falte alguna de las dos fechas (todavía no despachada o no recibida).
     double? DeliveryDelayDays,
+    string? ShortageTreatment,
+    long? CancelledBy,
+    DateTimeOffset? CancelledAt,
     DateTimeOffset CreatedAt,
     IReadOnlyList<TransferItemDto> Items
 );

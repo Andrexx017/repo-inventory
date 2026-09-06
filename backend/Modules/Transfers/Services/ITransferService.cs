@@ -24,6 +24,10 @@ public interface ITransferService
     // propio Operador antes de que la sucursal origen pueda prepararla.
     Task<TransferDto> ApproveAsync(long destinationBranchId, long id, long actingUserId);
 
+    // Denegar (sin aprobar todavía) o cancelar (ya en preparación) — desde
+    // origen o destino, mientras no se haya despachado físicamente.
+    Task<TransferDto> CancelAsync(long branchId, long id, long actingUserId);
+
     // RF-21: la sucursal ORIGEN revisa disponibilidad y confirma/ajusta cuánto
     // va a despachar de cada línea.
     Task<TransferDto> PrepareAsync(long originBranchId, long id, PrepareTransferDto request, long actingUserId);

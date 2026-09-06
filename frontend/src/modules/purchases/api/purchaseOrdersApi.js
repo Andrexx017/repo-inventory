@@ -16,10 +16,6 @@ export function createPurchaseOrder(branchId, order) {
   return postJson(`/api/purchase-orders/${branchId}`, order);
 }
 
-export function approvePurchaseOrder(branchId, id) {
-  return postJson(`/api/purchase-orders/${branchId}/${id}/approve`, {});
-}
-
 export function cancelPurchaseOrder(branchId, id) {
   return postJson(`/api/purchase-orders/${branchId}/${id}/cancel`, {});
 }

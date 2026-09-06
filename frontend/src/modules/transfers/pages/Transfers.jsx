@@ -156,11 +156,13 @@ export default function Transfers() {
     tab, setTab,
     transfersFilterFrom, setTransfersFilterFrom, transfersFilterTo, setTransfersFilterTo,
     originBranchId, setOriginBranchId, urgency, setUrgency,
-    lines, addLine, removeLine, updateLine,
+    lines, availableToTransfer, addLine, removeLine, updateLine,
     formError, formSuccess, handleCreateTransfer,
     isRequestModalOpen, openRequestModal, closeRequestModal,
     viewTransfer, openView, closeView,
     approveError, handleApprove, canApprove,
+    cancelError, handleCancel, canCancel, canDeny,
+    resendError, handleResend, canResend,
     prepareTarget, prepareQuantities, setPrepareQuantity, prepareNotes, setPrepareNotes, prepareError,
     openPrepare, closePrepare, handleSubmitPrepare,
     shipTarget, carrier, setCarrier, estimatedDeliveryDate, setEstimatedDeliveryDate,
@@ -174,6 +176,8 @@ export default function Transfers() {
 
   const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
   const [approveTarget, setApproveTarget] = useState(null);
+  const [resendTarget, setResendTarget] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
 
   // transfersKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync)
   // — no se puede calcular desde `transfers` porque esa lista ahora está
@@ -331,6 +335,12 @@ export default function Transfers() {
                           {canPrepare(t) && <button type="button" className="trf-action-prepare" onClick={() => openPrepare(t)}>Preparar</button>}
                           {canShip(t) && <button type="button" className="trf-action-ship" onClick={() => openShip(t)}>Despachar</button>}
                           {canReceiveTransfer(t) && <button type="button" className="trf-action-receive" onClick={() => openReceive(t)}>Recibir</button>}
+                          {canDeny(t) && (
+                            <button type="button" className="trf-action-cancel" onClick={() => setCancelTarget(t)}>Denegar</button>
+                          )}
+                          {canCancel(t) && (
+                            <button type="button" className="trf-action-cancel" onClick={() => setCancelTarget(t)}>Cancelar</button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -361,6 +371,24 @@ export default function Transfers() {
           </div>
 
           {approveError && <p className="form-error">{approveError}</p>}
+          {cancelError && <p className="form-error">{cancelError}</p>}
+
+          <ConfirmModal
+            open={!!cancelTarget}
+            title={cancelTarget?.status === 'requested' && !cancelTarget?.approvedAt ? 'Denegar transferencia' : 'Cancelar transferencia'}
+            message={
+              cancelTarget
+                ? `¿Seguro que querés ${cancelTarget.status === 'requested' && !cancelTarget.approvedAt ? 'denegar' : 'cancelar'} la transferencia ${cancelTarget.transferNumber} (${cancelTarget.originBranchName} → ${cancelTarget.destinationBranchName})? Esta acción no se puede deshacer.`
+                : ''
+            }
+            confirmLabel={cancelTarget?.status === 'requested' && !cancelTarget?.approvedAt ? 'Denegar' : 'Cancelar transferencia'}
+            tone="danger"
+            onConfirm={() => {
+              handleCancel(cancelTarget);
+              setCancelTarget(null);
+            }}
+            onCancel={() => setCancelTarget(null)}
+          />
 
           <ConfirmModal
             open={!!approveTarget}
@@ -431,149 +459,220 @@ export default function Transfers() {
                       </tbody>
                     </table>
                   </div>
+
+                  {viewTransfer.status === 'partially_received' && (
+                    <div className="trf-shortage-note" style={{ marginTop: '16px', alignItems: 'center' }}>
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
+                      <span>
+                        Esta transferencia se recibió con faltante. Tratamiento elegido:{' '}
+                        <strong>{viewTransfer.shortageTreatment ? TREATMENT_LABELS[viewTransfer.shortageTreatment] : '—'}</strong>.
+                      </span>
+                      {canResend(viewTransfer) && (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          style={{ marginLeft: 'auto', flexShrink: 0 }}
+                          onClick={() => setResendTarget(viewTransfer)}
+                        >
+                          Reenviar faltante
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {resendError && <p className="form-error" style={{ marginTop: '12px', marginBottom: 0 }}>{resendError}</p>}
                 </div>
               </div>
             </div>
           )}
 
+          <ConfirmModal
+            open={!!resendTarget}
+            title="Reenviar faltante"
+            message={
+              resendTarget
+                ? `¿Solicitar una nueva transferencia de ${resendTarget.originBranchName} → ${resendTarget.destinationBranchName} por las cantidades faltantes de ${resendTarget.transferNumber}?`
+                : ''
+            }
+            confirmLabel="Reenviar"
+            onConfirm={() => {
+              handleResend(resendTarget);
+              setResendTarget(null);
+            }}
+            onCancel={() => setResendTarget(null)}
+          />
+
           {prepareTarget && (
-            <form onSubmit={handleSubmitPrepare} className="form-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <h2 style={{ margin: 0 }}>Preparar despacho — {prepareTarget.transferNumber}</h2>
-                <button type="button" className="btn-secondary" onClick={closePrepare} style={{ marginLeft: 0 }}>Cerrar</button>
+            <div className="modal-overlay" onClick={closePrepare}>
+              <div className="modal-panel modal-panel-lg" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2 className="modal-title">Preparar despacho — {prepareTarget.transferNumber}</h2>
+                  <button type="button" className="modal-close" onClick={closePrepare} aria-label="Cerrar">
+                    <CloseIcon />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSubmitPrepare}>
+                  <div className="modal-body">
+                    <div className="trf-lines-table">
+                      <table>
+                        <thead><tr><th>Producto</th><th>Cant. solicitada</th><th>Cant. a despachar</th></tr></thead>
+                        <tbody>
+                          {prepareTarget.items.map((item) => (
+                            <tr key={item.id}>
+                              <td>{item.productName}</td>
+                              <td className="mono">{item.requestedQuantity}</td>
+                              <td>
+                                <input
+                                  type="number" min="0" max={item.requestedQuantity} step="0.01"
+                                  value={prepareQuantities[item.id] ?? ''}
+                                  onChange={(e) => setPrepareQuantity(item.id, e.target.value)}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label htmlFor="prepare-notes">Notas (opcional)</label>
+                      <input id="prepare-notes" value={prepareNotes} onChange={(e) => setPrepareNotes(e.target.value)} />
+                    </div>
+
+                    {prepareError && <p className="form-error" style={{ marginBottom: 0, marginTop: '12px' }}>{prepareError}</p>}
+                  </div>
+
+                  <div className="modal-footer">
+                    <button type="submit" className="btn-primary">CONFIRMAR PREPARACIÓN</button>
+                    <button type="button" className="btn-secondary" onClick={closePrepare}>Cerrar</button>
+                  </div>
+                </form>
               </div>
-
-              <div className="trf-lines-table">
-                <table>
-                  <thead><tr><th>Producto</th><th>Cant. solicitada</th><th>Cant. a despachar</th></tr></thead>
-                  <tbody>
-                    {prepareTarget.items.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.productName}</td>
-                        <td className="mono">{item.requestedQuantity}</td>
-                        <td>
-                          <input
-                            type="number" min="0" max={item.requestedQuantity} step="0.01"
-                            value={prepareQuantities[item.id] ?? ''}
-                            onChange={(e) => setPrepareQuantity(item.id, e.target.value)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="field" style={{ marginBottom: '16px' }}>
-                <label htmlFor="prepare-notes">Notas (opcional)</label>
-                <input id="prepare-notes" value={prepareNotes} onChange={(e) => setPrepareNotes(e.target.value)} />
-              </div>
-
-              {prepareError && <p className="form-error">{prepareError}</p>}
-
-              <button type="submit" className="btn-primary">CONFIRMAR PREPARACIÓN</button>
-            </form>
+            </div>
           )}
 
           {shipTarget && (
-            <form onSubmit={handleSubmitShip} className="form-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <h2 style={{ margin: 0 }}>Despachar transferencia — {shipTarget.transferNumber}</h2>
-                <button type="button" className="btn-secondary" onClick={closeShip} style={{ marginLeft: 0 }}>Cerrar</button>
+            <div className="modal-overlay" onClick={closeShip}>
+              <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2 className="modal-title">Despachar transferencia — {shipTarget.transferNumber}</h2>
+                  <button type="button" className="modal-close" onClick={closeShip} aria-label="Cerrar">
+                    <CloseIcon />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSubmitShip}>
+                  <div className="modal-body">
+                    <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                      <div className="field">
+                        <label htmlFor="ship-carrier">Transportista</label>
+                        <input id="ship-carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Ej. Transportes Rápido S.A.S." />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="ship-eta">Fecha estimada de llegada</label>
+                        <input id="ship-eta" type="date" value={estimatedDeliveryDate} onChange={(e) => setEstimatedDeliveryDate(e.target.value)} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="ship-priority">Prioridad de ruta (opcional)</label>
+                        <select id="ship-priority" value={routePriority} onChange={(e) => setRoutePriority(e.target.value)}>
+                          <option value="">Sin definir</option>
+                          <option value="low">Baja</option>
+                          <option value="medium">Media</option>
+                          <option value="high">Alta</option>
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="ship-cost">Costo de envío (opcional)</label>
+                        <input id="ship-cost" type="number" min="0" step="0.01" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label htmlFor="ship-notes">Notas (opcional)</label>
+                      <input id="ship-notes" value={shipNotes} onChange={(e) => setShipNotes(e.target.value)} />
+                    </div>
+
+                    {shipError && <p className="form-error" style={{ marginBottom: 0, marginTop: '12px' }}>{shipError}</p>}
+                  </div>
+
+                  <div className="modal-footer">
+                    <button type="submit" className="btn-primary">CONFIRMAR DESPACHO</button>
+                    <button type="button" className="btn-secondary" onClick={closeShip}>Cerrar</button>
+                  </div>
+                </form>
               </div>
-
-              <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                <div className="field">
-                  <label htmlFor="ship-carrier">Transportista</label>
-                  <input id="ship-carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Ej. Transportes Rápido S.A.S." />
-                </div>
-                <div className="field">
-                  <label htmlFor="ship-eta">Fecha estimada de llegada</label>
-                  <input id="ship-eta" type="date" value={estimatedDeliveryDate} onChange={(e) => setEstimatedDeliveryDate(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="ship-priority">Prioridad de ruta (opcional)</label>
-                  <select id="ship-priority" value={routePriority} onChange={(e) => setRoutePriority(e.target.value)}>
-                    <option value="">Sin definir</option>
-                    <option value="low">Baja</option>
-                    <option value="medium">Media</option>
-                    <option value="high">Alta</option>
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor="ship-cost">Costo de envío (opcional)</label>
-                  <input id="ship-cost" type="number" min="0" step="0.01" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="field" style={{ marginBottom: '16px' }}>
-                <label htmlFor="ship-notes">Notas (opcional)</label>
-                <input id="ship-notes" value={shipNotes} onChange={(e) => setShipNotes(e.target.value)} />
-              </div>
-
-              {shipError && <p className="form-error">{shipError}</p>}
-
-              <button type="submit" className="btn-primary">CONFIRMAR DESPACHO</button>
-            </form>
+            </div>
           )}
 
           {receiveTarget && (
-            <form onSubmit={handleSubmitReceive} className="form-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <h2 style={{ margin: 0 }}>Confirmar recepción — {receiveTarget.transferNumber}</h2>
-                <button type="button" className="btn-secondary" onClick={closeReceive} style={{ marginLeft: 0 }}>Cerrar</button>
-              </div>
-
-              <div className="trf-lines-table">
-                <table>
-                  <thead><tr><th>Producto</th><th>Cant. despachada</th><th>Cant. recibida</th></tr></thead>
-                  <tbody>
-                    {receiveTarget.items.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.productName}</td>
-                        <td className="mono">{item.shippedQuantity}</td>
-                        <td>
-                          <input
-                            type="number" min="0" max={item.shippedQuantity} step="0.01"
-                            value={receiveQuantities[item.id] ?? ''}
-                            onChange={(e) => setReceiveQuantity(item.id, e.target.value)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {receiveHasShortage && (
-                <div className="trf-shortage-note">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
-                  Hay una diferencia entre lo despachado y lo recibido. El tratamiento del faltante es obligatorio antes de confirmar.
+            <div className="modal-overlay" onClick={closeReceive}>
+              <div className="modal-panel modal-panel-lg" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2 className="modal-title">Confirmar recepción — {receiveTarget.transferNumber}</h2>
+                  <button type="button" className="modal-close" onClick={closeReceive} aria-label="Cerrar">
+                    <CloseIcon />
+                  </button>
                 </div>
-              )}
 
-              <div className="form-grid" style={{ gridTemplateColumns: receiveHasShortage ? '1fr 1fr' : '1fr' }}>
-                {receiveHasShortage && (
-                  <div className="field">
-                    <label htmlFor="receive-treatment">Tratamiento del faltante</label>
-                    <select id="receive-treatment" value={treatment} onChange={(e) => setTreatment(e.target.value)}>
-                      <option value="">Seleccione un tratamiento</option>
-                      {Object.entries(TREATMENT_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
+                <form onSubmit={handleSubmitReceive}>
+                  <div className="modal-body">
+                    <div className="trf-lines-table">
+                      <table>
+                        <thead><tr><th>Producto</th><th>Cant. despachada</th><th>Cant. recibida</th></tr></thead>
+                        <tbody>
+                          {receiveTarget.items.map((item) => (
+                            <tr key={item.id}>
+                              <td>{item.productName}</td>
+                              <td className="mono">{item.shippedQuantity}</td>
+                              <td>
+                                <input
+                                  type="number" min="0" max={item.shippedQuantity} step="0.01"
+                                  value={receiveQuantities[item.id] ?? ''}
+                                  onChange={(e) => setReceiveQuantity(item.id, e.target.value)}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {receiveHasShortage && (
+                      <div className="trf-shortage-note">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
+                        Hay una diferencia entre lo despachado y lo recibido. El tratamiento del faltante es obligatorio antes de confirmar.
+                      </div>
+                    )}
+
+                    <div className="form-grid" style={{ gridTemplateColumns: receiveHasShortage ? '1fr 1fr' : '1fr', marginBottom: 0 }}>
+                      {receiveHasShortage && (
+                        <div className="field">
+                          <label htmlFor="receive-treatment">Tratamiento del faltante</label>
+                          <select id="receive-treatment" value={treatment} onChange={(e) => setTreatment(e.target.value)}>
+                            <option value="">Seleccione un tratamiento</option>
+                            {Object.entries(TREATMENT_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div className="field">
+                        <label htmlFor="receive-notes">Notas (opcional)</label>
+                        <input id="receive-notes" value={receiveNotes} onChange={(e) => setReceiveNotes(e.target.value)} />
+                      </div>
+                    </div>
+
+                    {receiveError && <p className="form-error" style={{ marginBottom: 0, marginTop: '12px' }}>{receiveError}</p>}
                   </div>
-                )}
-                <div className="field">
-                  <label htmlFor="receive-notes">Notas (opcional)</label>
-                  <input id="receive-notes" value={receiveNotes} onChange={(e) => setReceiveNotes(e.target.value)} />
-                </div>
+
+                  <div className="modal-footer">
+                    <button type="submit" className="btn-primary">CONFIRMAR RECEPCIÓN</button>
+                    <button type="button" className="btn-secondary" onClick={closeReceive}>Cerrar</button>
+                  </div>
+                </form>
               </div>
-
-              {receiveError && <p className="form-error">{receiveError}</p>}
-
-              <button type="submit" className="btn-primary">CONFIRMAR RECEPCIÓN</button>
-            </form>
+            </div>
           )}
         </>
       )}
@@ -610,46 +709,74 @@ export default function Transfers() {
                   </div>
                 </div>
 
-                <div className="trf-lines-table">
+                <div className="trf-lines-table trf-lines-table-fixed">
                   <table>
+                    <colgroup>
+                      <col style={{ width: '44%' }} />
+                      <col style={{ width: '20%' }} />
+                      <col style={{ width: '26%' }} />
+                      <col style={{ width: '10%' }} />
+                    </colgroup>
                     <thead>
-                      <tr><th>Producto</th><th>Cantidad solicitada</th><th></th></tr>
+                      <tr><th>Producto</th><th>Disponible</th><th>Cantidad</th><th></th></tr>
                     </thead>
                     <tbody>
-                      {lines.map((line, i) => (
-                        <tr key={i}>
-                          <td>
-                            <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
-                              <option value="">Seleccione</option>
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              type="number" min="0.01" step="0.01"
-                              value={line.requestedQuantity}
-                              onChange={(e) => updateLine(i, 'requestedQuantity', e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            {lines.length > 1 && (
-                              <button type="button" className="trf-remove-line" onClick={() => removeLine(i)}>Quitar</button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {lines.map((line, i) => {
+                        const usedByOtherLines = lines
+                          .filter((_, li) => li !== i)
+                          .map((l) => l.productId)
+                          .filter(Boolean);
+                        const available = availableToTransfer(line.productId);
+
+                        return (
+                          <tr key={i}>
+                            <td>
+                              <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
+                                <option value="">Seleccione</option>
+                                {products
+                                  .filter((p) => !usedByOtherLines.includes(String(p.id)))
+                                  .map((p) => (
+                                    <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
+                                  ))}
+                              </select>
+                            </td>
+                            <td className="mono text-muted">
+                              {!originBranchId ? 'Elegí origen' : !line.productId ? '—' : available}
+                            </td>
+                            <td>
+                              <input
+                                type="number" min="0.01" max={available ?? undefined} step="0.01"
+                                value={line.requestedQuantity}
+                                onChange={(e) => updateLine(i, 'requestedQuantity', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              {lines.length > 1 && (
+                                <button type="button" className="trf-remove-line" onClick={() => removeLine(i)} aria-label="Quitar línea">×</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
 
                 <p className="trf-form-note">
-                  La sucursal destino es la tuya — se toma de tu sesión, no se elige acá. La sucursal origen revisará
-                  disponibilidad y confirmará cuánto puede despachar de cada línea.
+                  La sucursal destino es la tuya — se toma de tu sesión, no se elige acá. "Disponible" es el stock de
+                  la sucursal origen por encima de su propio umbral mínimo — el origen igual revisará y confirmará
+                  cuánto puede despachar de cada línea al preparar.
                 </p>
 
-                <button type="button" className="trf-add-line" onClick={addLine}>+ Agregar línea</button>
+                <button
+                  type="button"
+                  className="trf-add-line"
+                  onClick={addLine}
+                  disabled={lines.length >= products.length}
+                  aria-label="Agregar línea"
+                >
+                  <PlusIcon />
+                </button>
 
                 {formError && <p className="form-error" style={{ marginBottom: 0 }}>{formError}</p>}
                 {formSuccess && <p className="trf-form-success" style={{ marginBottom: 0 }}>{formSuccess}</p>}

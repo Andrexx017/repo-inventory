@@ -26,7 +26,7 @@ export function useLogin() {
       const data = await login(email, password);
 
       setToken(data.token);
-      setUser({ name: data.name, role: data.role, branchId: data.branchId });
+      setUser({ id: data.id, name: data.name, role: data.role, branchId: data.branchId });
 
       navigate('/');
     } catch (err) {

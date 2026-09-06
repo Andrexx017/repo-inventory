@@ -7,7 +7,6 @@ import {
   getPurchaseOrders,
   getPurchaseOrdersKpiSummary,
   createPurchaseOrder,
-  approvePurchaseOrder,
   cancelPurchaseOrder,
   createPurchaseReceipt,
   getPurchaseReceipts,
@@ -16,11 +15,11 @@ import { startOfDayIso, endOfDayIso } from '../../../shared/dateRange';
 
 const ORDERS_PAGE_SIZE = 25;
 
-// Estados alcanzables desde el backend (PurchaseOrderService) — 'sent' está en
-// el CHECK de la tabla pero el flujo real todavía no lo usa (draft -> confirmed
-// directo), así que no aparece acá.
+// Estados alcanzables desde el backend (PurchaseOrderService) — 'draft' y
+// 'sent' están en el CHECK de la tabla (histórico/legado) pero el flujo real
+// ya no los usa: la orden nace directo en 'confirmed' (el Operador no
+// necesita aprobación del Gerente), así que no aparecen acá.
 export const ORDER_STATUS_LABELS = {
-  draft: 'BORRADOR',
   confirmed: 'CONFIRMADA',
   partially_received: 'PARCIAL',
   fully_received: 'COMPLETA',
@@ -40,12 +39,11 @@ export function usePurchases() {
   const isInventoryOperator = user?.role === 'inventory_operator';
   const isBranchManager = user?.role === 'branch_manager';
   // RF-04: general_admin tiene "visibilidad y permisos totales" — puede
-  // registrar/recibir órdenes (como inventory_operator) y aprobarlas (como
-  // branch_manager) en cualquier sucursal, mismo criterio ya aplicado en
-  // Inventario (sección 2.14). No tiene sucursal propia, así que a diferencia
-  // de los otros dos roles necesita elegir una (ver branches/setBranchId abajo).
+  // registrar/recibir órdenes (como inventory_operator) en cualquier
+  // sucursal, mismo criterio ya aplicado en Inventario (sección 2.14). No
+  // tiene sucursal propia, así que a diferencia de los otros dos roles
+  // necesita elegir una (ver branches/setBranchId abajo).
   const canManageOrders = isInventoryOperator || isGeneralAdmin;
-  const canApproveRole = isBranchManager || isGeneralAdmin;
 
   const [branches, setBranches] = useState([]);
   const [branchId, setBranchId] = useState(user?.branchId ? String(user.branchId) : '');
@@ -224,15 +222,6 @@ export function usePurchases() {
     }
   }
 
-  async function handleApprove(order) {
-    try {
-      await approvePurchaseOrder(branchId, order.id);
-      await loadOrders();
-    } catch (err) {
-      setError(err.message || 'No se pudo aprobar la orden.');
-    }
-  }
-
   async function handleCancel(order) {
     try {
       await cancelPurchaseOrder(branchId, order.id);
@@ -306,10 +295,6 @@ export function usePurchases() {
     }
   }
 
-  function canApprove(order) {
-    return canApproveRole && order.status === 'draft';
-  }
-
   function canCancel(order) {
     return !NON_CANCELLABLE_STATUSES.has(order.status);
   }
@@ -361,9 +346,7 @@ export function usePurchases() {
     openOrderModal,
     closeOrderModal,
 
-    handleApprove,
     handleCancel,
-    canApprove,
     canCancel,
     canReceive,
 

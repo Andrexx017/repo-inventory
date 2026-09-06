@@ -11,6 +11,5 @@ public interface IPurchaseOrderService
         int page, int pageSize);
     Task<PurchaseOrderDto?> GetByIdAsync(long id);
     Task<PurchaseOrdersKpiDto> GetKpiSummaryAsync(long branchId);
-    Task<PurchaseOrderDto> ApproveAsync(long id);
-    Task<PurchaseOrderDto> CancelAsync(long id);
+    Task<PurchaseOrderDto> CancelAsync(long id, long actingUserId);
 }

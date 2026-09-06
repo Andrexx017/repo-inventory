@@ -23,6 +23,9 @@ public class Transfer
     public DateTimeOffset? ActualShipDate { get; set; }
     public DateTimeOffset? EstimatedArrivalDate { get; set; }
     public DateTimeOffset? ActualArrivalDate { get; set; }
+    public string? ShortageTreatment { get; set; }
+    public long? CancelledBy { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
     public ICollection<TransferItem> Items { get; set; } = new List<TransferItem>();

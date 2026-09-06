@@ -8,13 +8,14 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Inventory.Modules.Transfers.Controllers;
 
-// Alineado con el diagrama de casos de uso (diagrams/DiagramaCasoDeUso.drawio.png):
-// Solicitar transferencia (UC19) es de Operador+Gerente+Admin; Preparar/despachar
-// (UC20) sigue siendo exclusivo de Operador+Admin (el Gerente no despacha físicamente);
-// Confirmar recepción (UC11) es de Gerente+Operador+Admin. El [Authorize] de clase
-// habilita el GET a los tres roles (igual criterio de lectura abierta que
-// Inventario/Catálogo); cada método de escritura se acota aparte y se combina con
-// AND con el de la clase.
+// Alineado con el diagrama de casos de uso (diagrams/DiagramaCasoDeUso.drawio.png),
+// con un ajuste sobre UC20: Solicitar transferencia (UC19) es de Operador+Gerente+Admin;
+// Preparar/despachar (UC20) es de Operador+Gerente+Admin de la sucursal ORIGEN — se
+// abrió a Gerente porque una sucursal puede no tener un Operador de inventario propio,
+// y en ese caso solo el Admin podía avanzar el flujo de salida; Confirmar recepción
+// (UC11) es de Gerente+Operador+Admin. El [Authorize] de clase habilita el GET a los
+// tres roles (igual criterio de lectura abierta que Inventario/Catálogo); cada método
+// de escritura se acota aparte y se combina con AND con el de la clase.
 [ApiController]
 [Route("api/transfers")]
 [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.BranchManager + "," + RoleCodes.InventoryOperator)]
@@ -123,9 +124,43 @@ public class TransfersController : ControllerBase
         return Ok(transfer);
     }
 
+    // Denegar/cancelar: a diferencia de Aprobar/Preparar (un solo lado), acá
+    // puede actuar tanto origen como destino — el Service valida que branchId
+    // sea una de las dos partes. El [Authorize] de clase ya habilita los 3
+    // roles porque "cancelar" en preparación es tarea operativa del origen
+    // (mismos roles que Preparar/Despachar); pero "denegar" una solicitud
+    // TODAVÍA SIN APROBAR, visto desde el destino, es el rechazo simétrico de
+    // Aprobar — mismo rol (Gerente+Admin), el Operador queda afuera. Esa
+    // combinación puntual (destino + sin aprobar) no se puede expresar con un
+    // [Authorize(Roles=...)] fijo porque depende del estado real de la
+    // transferencia, así que se verifica a mano acá.
+    [HttpPost("{branchId:long}/{id:long}/cancel")]
+    public async Task<ActionResult<TransferDto>> Cancel(long branchId, long id)
+    {
+        var authResult = await _authorizationService.AuthorizeAsync(User, branchId, "SameBranch");
+        if (!authResult.Succeeded)
+        {
+            return Forbid();
+        }
+
+        var existing = await _transferService.GetByIdAsync(id);
+        var isDenyingUnapprovedRequest = existing is not null
+            && existing.Status == "requested"
+            && existing.ApprovedAt is null
+            && existing.DestinationBranchId == branchId;
+
+        if (isDenyingUnapprovedRequest && !User.IsInRole(RoleCodes.GeneralAdmin) && !User.IsInRole(RoleCodes.BranchManager))
+        {
+            return Forbid();
+        }
+
+        var transfer = await _transferService.CancelAsync(branchId, id, User.GetUserId());
+        return Ok(transfer);
+    }
+
     // RF-21: la sucursal ORIGEN confirma/ajusta la cantidad a enviar.
     [HttpPut("{originBranchId:long}/{id:long}/prepare")]
-    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.InventoryOperator)]
+    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.InventoryOperator + "," + RoleCodes.BranchManager)]
     public async Task<ActionResult<TransferDto>> Prepare(long originBranchId, long id, PrepareTransferDto request)
     {
         var authResult = await _authorizationService.AuthorizeAsync(User, originBranchId, "SameBranch");
@@ -141,7 +176,7 @@ public class TransfersController : ControllerBase
     // RF-22: la sucursal ORIGEN despacha físicamente la transferencia (transportista +
     // fecha estimada de llegada), momento en el que recién se descuenta su inventario.
     [HttpPut("{originBranchId:long}/{id:long}/ship")]
-    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.InventoryOperator)]
+    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.InventoryOperator + "," + RoleCodes.BranchManager)]
     public async Task<ActionResult<TransferDto>> Ship(long originBranchId, long id, ShipTransferDto request)
     {
         var authResult = await _authorizationService.AuthorizeAsync(User, originBranchId, "SameBranch");
@@ -155,10 +190,11 @@ public class TransfersController : ControllerBase
     }
 
     // RF-23/RF-24: la sucursal DESTINO confirma la recepción (completa o con
-    // faltante). UC11 del diagrama de casos de uso: Gerente, Operador y Admin
-    // pueden confirmar recepción.
+    // faltante) — ajustado a pedido explícito del usuario: el Operador queda
+    // afuera, solo Gerente (+Admin) confirma la recepción (antes incluía
+    // también al Operador, por UC11 del diagrama de casos de uso original).
     [HttpPut("{destinationBranchId:long}/{id:long}/receive")]
-    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.BranchManager + "," + RoleCodes.InventoryOperator)]
+    [Authorize(Roles = RoleCodes.GeneralAdmin + "," + RoleCodes.BranchManager)]
     public async Task<ActionResult<TransferDto>> Receive(long destinationBranchId, long id, ReceiveTransferDto request)
     {
         var authResult = await _authorizationService.AuthorizeAsync(User, destinationBranchId, "SameBranch");

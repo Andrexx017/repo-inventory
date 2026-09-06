@@ -1,0 +1,101 @@
+@keyframes toast-slide-in {
+    from { transform: translateX(24px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toast-countdown {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+.toast-stack {
+    position: fixed;
+    top: 76px;
+    right: 20px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 340px;
+}
+
+.toast-card {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--cyan);
+    border-radius: 10px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+    animation: toast-slide-in 0.2s ease-out;
+    overflow: hidden;
+}
+
+.toast-card-warning { border-left-color: var(--warning); }
+.toast-card-danger { border-left-color: var(--danger); }
+.toast-card-info { border-left-color: var(--cyan); }
+
+/* Barra decremental al pie del toast — mismo color que el acento de la
+   severidad, encoge de izquierda a derecha en la misma duración que el
+   auto-cierre (AUTO_DISMISS_MS, pasado como animationDuration inline) para
+   que el usuario vea cuánto tiempo le queda antes de que se cierre sola. */
+.toast-card-progress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 3px;
+    background: var(--cyan);
+    transform-origin: left;
+    animation-name: toast-countdown;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+.toast-card-warning .toast-card-progress { background: var(--warning); }
+.toast-card-danger .toast-card-progress { background: var(--danger); }
+.toast-card-info .toast-card-progress { background: var(--cyan); }
+
+.toast-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px 10px 12px 14px;
+    text-decoration: none;
+}
+
+.toast-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.toast-card-sub {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.toast-card-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 12px;
+    cursor: pointer;
+}
+
+.toast-card-close:hover {
+    color: var(--text);
+}
+
+@media (max-width: 560px) {
+    .toast-stack {
+        left: 12px;
+        right: 12px;
+        max-width: none;
+    }
+}

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useNotifications } from '../hooks/useNotifications';
+import { ToastStack } from './Toast';
 import './NotificationBell.css';
 
 export default function NotificationBell() {
-    const { notifications, loading, hasBranch } = useNotifications();
+    const { notifications, loading, hasBranch, toasts, dismissToast } = useNotifications();
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
 
@@ -18,6 +19,7 @@ export default function NotificationBell() {
 
     return (
         <div className="notif-bell-wrap" ref={ref}>
+            <ToastStack toasts={toasts} onDismiss={dismissToast} />
             <button
                 type="button"
                 className="app-bell"

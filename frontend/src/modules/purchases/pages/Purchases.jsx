@@ -84,13 +84,13 @@ export default function Purchases() {
     lines, addLine, removeLine, updateLine, lineAmounts, orderTotals,
     formError, handleCreateOrder,
     isOrderModalOpen, openOrderModal, closeOrderModal,
-    handleApprove, handleCancel, canApprove, canCancel, canReceive,
+    handleCancel, canCancel, canReceive,
     receiptOrder, receiptPending, receiptQuantities, setReceiptQuantity,
     receiptNotes, setReceiptNotes, receiptError, openReceipt, closeReceipt, handleSubmitReceipt,
   } = usePurchases();
 
   const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
 
   // ordersKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync) —
   // no se puede calcular desde `orders` porque esa lista ahora está paginada.
@@ -253,14 +253,11 @@ export default function Purchases() {
                         </td>
                         <td className="pur-actions">
                           <div className="pur-actions-inner">
-                            {canApprove(order) && (
-                              <button type="button" className="pur-action-approve" onClick={() => setConfirmAction({ type: 'approve', order })}>Aprobar</button>
-                            )}
                             {canReceive(order) && (
                               <button type="button" className="pur-action-receive" onClick={() => openReceipt(order)}>Recibir</button>
                             )}
                             {canCancel(order) && (
-                              <button type="button" className="pur-action-cancel" onClick={() => setConfirmAction({ type: 'cancel', order })}>Cancelar</button>
+                              <button type="button" className="pur-action-cancel" onClick={() => setCancelTarget(order)}>Cancelar</button>
                             )}
                           </div>
                         </td>
@@ -291,21 +288,20 @@ export default function Purchases() {
               </div>
 
               <ConfirmModal
-                open={!!confirmAction}
-                title={confirmAction?.type === 'approve' ? 'Aprobar orden de compra' : 'Cancelar orden de compra'}
+                open={!!cancelTarget}
+                title="Cancelar orden de compra"
                 message={
-                  confirmAction?.type === 'approve'
-                    ? `¿Seguro que querés aprobar la orden ${confirmAction?.order.orderNumber} (${confirmAction?.order.supplierName})? Una vez aprobada vas a poder registrar la recepción de los productos.`
-                    : `¿Seguro que querés cancelar la orden ${confirmAction?.order.orderNumber} (${confirmAction?.order.supplierName})? Esta acción no se puede deshacer.`
+                  cancelTarget
+                    ? `¿Seguro que querés cancelar la orden ${cancelTarget.orderNumber} (${cancelTarget.supplierName})? Esta acción no se puede deshacer.`
+                    : ''
                 }
-                confirmLabel={confirmAction?.type === 'approve' ? 'Aprobar' : 'Cancelar orden'}
-                tone={confirmAction?.type === 'cancel' ? 'danger' : 'default'}
+                confirmLabel="Cancelar orden"
+                tone="danger"
                 onConfirm={() => {
-                  if (confirmAction?.type === 'approve') handleApprove(confirmAction.order);
-                  else if (confirmAction?.type === 'cancel') handleCancel(confirmAction.order);
-                  setConfirmAction(null);
+                  handleCancel(cancelTarget);
+                  setCancelTarget(null);
                 }}
-                onCancel={() => setConfirmAction(null)}
+                onCancel={() => setCancelTarget(null)}
               />
 
               {receiptOrder && (

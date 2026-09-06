@@ -99,7 +99,10 @@ public class PurchaseOrderService : IPurchaseOrderService
             Supplier = supplier,
             BranchId = branchId,
             Branch = branch,
-            Status = "draft",
+            // Sin aprobación previa a propósito: el Operador de inventario no
+            // necesita el visto bueno del Gerente para generar una orden de
+            // compra — nace directo en 'confirmed', lista para recibir.
+            Status = "confirmed",
             OrderDate = DateTimeOffset.UtcNow,
             PaymentTermDays = request.PaymentTermDays,
             Subtotal = subtotal,
@@ -135,27 +138,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public Task<PurchaseOrdersKpiDto> GetKpiSummaryAsync(long branchId) => _purchaseOrders.GetKpiSummaryAsync(branchId);
 
-    // UC-09: aprobación del Gerente de sucursal. Solo se puede aprobar una orden
-    // recién creada — todavía no existe un estado intermedio "enviada" en este
-    // alcance, así que la transición es directa draft -> confirmed.
-    public async Task<PurchaseOrderDto> ApproveAsync(long id)
-    {
-        var order = await _purchaseOrders.GetByIdAsync(id)
-            ?? throw new DomainException($"La orden de compra {id} no existe.");
-
-        if (order.Status != "draft")
-        {
-            throw new DomainException(
-                $"Solo se puede aprobar una orden en estado 'draft' (estado actual: '{order.Status}').");
-        }
-
-        order.Status = "confirmed";
-        await _purchaseOrders.SaveChangesAsync();
-
-        return ToDto(order);
-    }
-
-    public async Task<PurchaseOrderDto> CancelAsync(long id)
+    public async Task<PurchaseOrderDto> CancelAsync(long id, long actingUserId)
     {
         var order = await _purchaseOrders.GetByIdAsync(id)
             ?? throw new DomainException($"La orden de compra {id} no existe.");
@@ -166,6 +149,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         order.Status = "cancelled";
+        order.DecidedBy = actingUserId;
+        order.DecidedAt = DateTimeOffset.UtcNow;
         await _purchaseOrders.SaveChangesAsync();
 
         return ToDto(order);
@@ -211,6 +196,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         order.TotalDiscount,
         order.Total,
         order.CreatedBy,
+        order.DecidedBy,
+        order.DecidedAt,
         order.CreatedAt,
         order.Items.Select(ToItemDto).ToList()
     );

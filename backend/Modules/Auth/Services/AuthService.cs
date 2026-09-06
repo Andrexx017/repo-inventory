@@ -46,7 +46,7 @@ public class AuthService : IAuthService
 
         var token = _tokenGenerator.GenerateToken(user.Id, user.Role.Code, user.BranchId);
 
-        return new LoginResponseDto(token, user.Name, user.Role.Code, user.BranchId);
+        return new LoginResponseDto(user.Id, token, user.Name, user.Role.Code, user.BranchId);
     }
 
     // Respuesta siempre genérica en el Controller (200 exista o no el email) para

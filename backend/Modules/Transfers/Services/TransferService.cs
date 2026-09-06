@@ -25,6 +25,12 @@ public class TransferService : ITransferService
     };
     private static readonly HashSet<string> AllowedSortKeys = ["priority", "cost", "time"];
 
+    // Una vez despachada (in_transit) ya se descontó inventario real de origen
+    // (RF-22) — cancelar en ese punto exigiría revertir ese movimiento, fuera
+    // de alcance. Mismo criterio que NonCancellableStatuses de PurchaseOrderService.
+    private static readonly HashSet<string> NonCancellableStatuses =
+        ["in_transit", "fully_received", "partially_received", "cancelled"];
+
     private readonly ITransferRepository _transfers;
     private readonly IBranchRepository _branches;
     private readonly IProductRepository _products;
@@ -199,6 +205,47 @@ public class TransferService : ITransferService
             Status = "requested",
             EventDate = DateTimeOffset.UtcNow,
             Notes = "Aprobada por el gerente de la sucursal destino.",
+            RecordedBy = actingUserId,
+        });
+
+        await _transfers.SaveChangesAsync();
+
+        return ToDto(transfer);
+    }
+
+    // Denegar (todavía 'requested', sin aprobar) o cancelar (ya aprobada,
+    // 'preparing') una transferencia — un solo método para ambos casos, mismo
+    // criterio que ReceiveAsync cubre "completa" y "parcial" sin que el
+    // usuario elija de antemano cuál aplica. Disponible tanto para origen
+    // como para destino (a diferencia de Aprobar/Preparar, que son de un solo
+    // lado) — cualquiera de las dos partes puede necesitar desistir.
+    public async Task<TransferDto> CancelAsync(long branchId, long id, long actingUserId)
+    {
+        var transfer = await _transfers.GetByIdAsync(id)
+            ?? throw new DomainException($"La transferencia {id} no existe.");
+
+        if (transfer.OriginBranchId != branchId && transfer.DestinationBranchId != branchId)
+        {
+            throw new DomainException($"La transferencia {id} no pertenece a la sucursal {branchId}.");
+        }
+
+        if (NonCancellableStatuses.Contains(transfer.Status))
+        {
+            throw new DomainException($"No se puede cancelar una transferencia en estado '{transfer.Status}'.");
+        }
+
+        transfer.Status = "cancelled";
+        // Registrado para poder notificar a quien la solicitó (RequestedBy)
+        // que fue denegada (sin ApprovedAt) o cancelada ya aprobada, y para
+        // acotar esa notificación por antigüedad (mismo criterio que
+        // decided_by/decided_at en purchase_orders).
+        transfer.CancelledBy = actingUserId;
+        transfer.CancelledAt = DateTimeOffset.UtcNow;
+        transfer.Events.Add(new TransferEvent
+        {
+            TransferId = transfer.Id,
+            Status = "cancelled",
+            EventDate = DateTimeOffset.UtcNow,
             RecordedBy = actingUserId,
         });
 
@@ -496,6 +543,7 @@ public class TransferService : ITransferService
 
         transfer.Status = hasShortage ? "partially_received" : "fully_received";
         transfer.ActualArrivalDate = DateTimeOffset.UtcNow;
+        transfer.ShortageTreatment = request.Treatment;
 
         var eventNotes = hasShortage
             ? $"Faltante detectado. Tratamiento: {request.Treatment}."
@@ -592,6 +640,9 @@ public class TransferService : ITransferService
         transfer.EstimatedArrivalDate is { } estimated && transfer.ActualArrivalDate is { } actual
             ? (actual - estimated).TotalDays
             : null,
+        transfer.ShortageTreatment,
+        transfer.CancelledBy,
+        transfer.CancelledAt,
         transfer.CreatedAt,
         transfer.Items.Select(ToItemDto).ToList()
     );

@@ -299,6 +299,18 @@
     .app-content {
         padding: 20px 16px;
     }
+
+    /* En desktop .table-card usa flex:1/min-height:0 para absorber el
+       espacio sobrante y mantener el scroll dentro de la tabla (ver arriba).
+       En móvil el viewport es mucho más bajo y los hermanos (filtros, KPIs,
+       tabs) ya ocupan casi toda esa altura al pasar a una sola columna, así
+       que ese mismo flex:1 la comprimía hasta casi 0px — la tabla quedaba
+       oculta. Acá se le da una altura mínima usable y se deja que la página
+       (que ya tiene overflow:auto) haga el scroll en vez de la tabla. */
+    .app-content > .table-card {
+        flex: 0 0 auto;
+        min-height: 280px;
+    }
 }
 
 @media (max-width: 560px) {
