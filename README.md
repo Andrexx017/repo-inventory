@@ -10,6 +10,7 @@ Backend en .NET/C# (API REST), frontend en React + Vite, base de datos PostgreSQ
 - [Instalación](#instalación)
 - [Arquitectura](#arquitectura)
 - [Módulos implementados](#módulos-implementados)
+- [Pruebas automatizadas](#pruebas-automatizadas)
 - [Decisiones de diseño](#decisiones-de-diseño)
 - [Diagramas](#diagramas)
 - [Uso de IA en el desarrollo](#uso-de-ia-en-el-desarrollo)
@@ -24,7 +25,7 @@ Tres roles cubren el flujo completo:
 | Rol | Alcance |
 |---|---|
 | **Administrador general** (`general_admin`) | Gestión de usuarios, sucursales y roles; visibilidad total sobre todas las sucursales. |
-| **Gerente de sucursal** (`branch_manager`) | Supervisa su propia sucursal, aprueba transferencias/compras, consulta reportes. |
+| **Gerente de sucursal** (`branch_manager`) | Supervisa su propia sucursal, aprueba/deniega transferencias, consulta reportes. |
 | **Operador de inventario** (`inventory_operator`) | Trabajo operativo diario: ingresos/retiros de stock, ventas, compras, solicitudes de transferencia. |
 
 Funcionalidades adicionales implementadas (sección 4 de la prueba técnica): **alertas inteligentes de stock** (umbral mínimo/máximo, notificación opcional por correo) y **reportes exportables** (PDF/Excel de movimientos, ventas o transferencias por rango de fechas).
@@ -132,6 +133,10 @@ No hay una base de datos por sucursal ni mecanismo de réplica/mensajería: **un
 
 JWT Bearer (`Microsoft.AspNetCore.Authentication.JwtBearer`), stateless, con claims `role` y `branch_id`. Autorización por rol (`[Authorize(Roles = ...)]`) y por sucursal (`IAuthorizationHandler` custom). El frontend guarda el token en memoria (Context de React, no `localStorage`) para reducir superficie de robo por XSS.
 
+### Notificaciones
+
+Sin WebSockets/SignalR: la campana y las notificaciones flotantes del frontend funcionan por *polling* cada 5 segundos contra los mismos endpoints REST ya existentes (alertas de stock, transferencias, órdenes de compra) — "casi tiempo real" sin sumar infraestructura de push. Cubren todo el ciclo de vida de una transferencia (solicitada → esperando aprobación del Gerente destino → aprobada/denegada → en tránsito → recibida/cancelada, avisando en cada paso a quien corresponde actuar o enterarse) y las órdenes de compra que un Gerente cancela.
+
 ## Módulos implementados
 
 Los 8 módulos del dominio, con backend y frontend completos:
@@ -141,15 +146,25 @@ Los 8 módulos del dominio, con backend y frontend completos:
 | **Auth** | ✅ | ✅ | Login, recuperación de contraseña por email, gestión de usuarios, sucursales y roles |
 | **Catalog** | ✅ | ✅ | Productos, categorías, unidades de medida — CRUD completo, listado paginado y filtrado |
 | **Inventory** | ✅ | ✅ | Existencias por sucursal, ingresos/retiros, historial de movimientos, umbrales min/max con alertas |
-| **Purchases** | ✅ | ✅ | Proveedores, órdenes de compra (crear/aprobar/cancelar), recepción con actualización automática de inventario |
+| **Purchases** | ✅ | ✅ | Proveedores, órdenes de compra (crear/cancelar — el Operador no necesita aprobación del Gerente, nace confirmada), recepción con actualización automática de inventario |
 | **Sales** | ✅ | ✅ | Registro de venta con precio resuelto por el servidor, validación de stock, listas de precio |
-| **Transfers** | ✅ | ✅ | Ciclo completo de transferencia entre sucursales (solicitar → preparar → despachar → recibir) + logística (prioridad de ruta, transportista, cumplimiento estimado vs. real) |
+| **Transfers** | ✅ | ✅ | Ciclo completo de transferencia entre sucursales (solicitar → aprobar/denegar → preparar → despachar → recibir, con reenvío automático de faltante) + logística (prioridad de ruta, transportista, cumplimiento estimado vs. real) |
 | **Dashboard** | ✅ | ✅ | KPIs cross-módulo: ventas del mes, rotación de inventario, transferencias activas, stock próximo a agotarse, comparativa entre sucursales (solo Administrador general) |
 | **Reports** | ✅ | ✅ | Exportación a PDF/Excel de movimientos, ventas o transferencias por rango de fechas (QuestPDF / ClosedXML) |
 
 `Dashboard` y `Reports` no tienen tablas propias: componen datos de los demás módulos inyectando sus repositorios/servicios. `Transfers` absorbe también la funcionalidad de **Logística**, porque el esquema no tiene tablas separadas para eso.
 
 El historial detallado de cada commit (qué se implementó, en qué archivo, y por qué) está en [`RUTA.md`](RUTA.md).
+
+## Pruebas automatizadas
+
+`backend.Tests` (xUnit + Moq, proyecto hermano de `backend/` y `frontend/`) cubre con pruebas unitarias las 5 reglas de negocio críticas documentadas en [`backend/docs/reglas-negocio-criticas.md`](backend/docs/reglas-negocio-criticas.md): validar stock antes de confirmar una venta o preparar una transferencia (RN-CRIT-03), atomicidad movimiento de inventario + actualización de stock (RN-CRIT-04), totales de cabecera consistentes con la suma de sus líneas (RN-CRIT-02), que una transferencia no reciba más de lo despachado (RN-CRIT-05), y que solo el Administrador general pueda quedar sin sucursal asignada (RN-CRIT-01). Los repositorios se mockean con Moq — ninguna prueba toca una base de datos real.
+
+```bash
+dotnet test backend.Tests
+```
+
+Alcance decidido explícitamente por tiempo: solo pruebas unitarias, sin pruebas de integración contra Postgres real ni pipeline de CI. Detalle completo (por qué xUnit/Moq, por qué no integración, y un problema real de resolución de versiones de EF Core que hubo que resolver) en [`RUTA.md`](RUTA.md) y [`SUSTENTACION.md`](SUSTENTACION.md), sección 14.
 
 ## Decisiones de diseño
 
@@ -192,6 +207,5 @@ El detalle completo — herramientas usadas por etapa, ejemplos de prompts reale
 - [`requirements/casos-de-uso.md`](requirements/casos-de-uso.md) — actores, matriz actor×módulo, casos de uso detallados.
 - [`requirements/historias-de-usuario.md`](requirements/historias-de-usuario.md) — historias de usuario.
 - [`requirements/uso-de-ia.md`](requirements/uso-de-ia.md) — herramientas de IA usadas por etapa, ejemplos de prompts, evaluación crítica y % estimado de asistencia.
-- [`requirements/analisis-requerimientos.md`](requirements/analisis-requerimientos.md) — análisis previo de requerimientos.
 - [`RUTA.md`](RUTA.md) — bitácora cronológica de cada commit del proyecto.
 - [`SUSTENTACION.md`](SUSTENTACION.md) — preguntas y respuestas de preparación para la sustentación.
