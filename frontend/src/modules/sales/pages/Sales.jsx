@@ -75,7 +75,8 @@ function isVigente(priceList) {
 export default function Sales() {
   const {
     branches, branchId, setBranchId, isGeneralAdmin, canCreateSale,
-    products, priceLists, sales, salesPage, setSalesPage, salesTotalPages, salesKpi, loading, error,
+    products, visibleProducts, productSearch, setProductSearch,
+    priceLists, sales, salesPage, setSalesPage, salesTotalPages, salesKpi, loading, error,
     salesFilterFrom, setSalesFilterFrom, salesFilterTo, setSalesFilterTo,
     tab, setTab,
     priceListId, setPriceListId, customerName, setCustomerName,
@@ -87,6 +88,10 @@ export default function Sales() {
     priceListItemSearch, setPriceListItemSearch, savingProductId,
     openPriceListEditor, closePriceListEditor, updatePriceListItemDraft,
     handleSavePrice, handleRemovePrice,
+    isPriceListCreateModalOpen, openCreatePriceListModal, closeCreatePriceListModal,
+    newPriceListName, setNewPriceListName, newPriceListDescription, setNewPriceListDescription,
+    newPriceListStartDate, setNewPriceListStartDate, newPriceListEndDate, setNewPriceListEndDate,
+    priceListFormError, handleCreatePriceList,
   } = useSales();
 
   const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
@@ -322,6 +327,15 @@ export default function Sales() {
 
           {tab === 'listas' && (
             <>
+              {isGeneralAdmin && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn-primary" onClick={openCreatePriceListModal}>
+                    <PlusIcon />
+                    Nueva lista de precios
+                  </button>
+                </div>
+              )}
+
               <div className="table-card">
                 <table className="data-table">
                   <thead>
@@ -372,7 +386,7 @@ export default function Sales() {
 
       {isSaleModalOpen && (
         <div className="modal-overlay" onClick={closeSaleModal}>
-          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-panel modal-panel-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">Registrar venta</h2>
               <button type="button" className="modal-close" onClick={closeSaleModal} aria-label="Cerrar">
@@ -403,8 +417,25 @@ export default function Sales() {
                   </div>
                 </div>
 
-                <div className="sal-lines-table">
+                <div className="field">
+                  <label htmlFor="sale-product-search">Buscar producto</label>
+                  <input
+                    id="sale-product-search"
+                    type="text"
+                    placeholder="SKU o nombre — filtra las opciones de las líneas"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                  />
+                </div>
+
+                <div className="sal-lines-table sal-lines-table-fixed">
                   <table>
+                    <colgroup>
+                      <col style={{ width: '52%' }} />
+                      <col style={{ width: '20%' }} />
+                      <col style={{ width: '18%' }} />
+                      <col style={{ width: '10%' }} />
+                    </colgroup>
                     <thead>
                       <tr>
                         <th>Producto</th>
@@ -414,37 +445,51 @@ export default function Sales() {
                       </tr>
                     </thead>
                     <tbody>
-                      {lines.map((line, i) => (
-                        <tr key={i}>
-                          <td>
-                            <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
-                              <option value="">Seleccione</option>
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              type="number" min="0.01" step="0.01"
-                              value={line.quantity}
-                              onChange={(e) => updateLine(i, 'quantity', e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number" min="0" max="100" step="0.01"
-                              value={line.discountPct}
-                              onChange={(e) => updateLine(i, 'discountPct', e.target.value)}
-                            />
-                          </td>
-                          <td>
-                            {lines.length > 1 && (
-                              <button type="button" className="sal-remove-line" onClick={() => removeLine(i)}>Quitar</button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {lines.map((line, i) => {
+                        const usedByOtherLines = lines
+                          .filter((_, li) => li !== i)
+                          .map((l) => l.productId)
+                          .filter(Boolean);
+                        // El producto ya elegido en esta línea se mantiene visible aunque
+                        // no matchee la búsqueda — si no, cambiar el filtro lo "borraría".
+                        const selectableProducts = visibleProducts.some((p) => String(p.id) === line.productId)
+                          ? visibleProducts
+                          : [...visibleProducts, ...products.filter((p) => String(p.id) === line.productId)];
+
+                        return (
+                          <tr key={i}>
+                            <td>
+                              <select value={line.productId} onChange={(e) => updateLine(i, 'productId', e.target.value)}>
+                                <option value="">Seleccione</option>
+                                {selectableProducts
+                                  .filter((p) => !usedByOtherLines.includes(String(p.id)))
+                                  .map((p) => (
+                                    <option key={p.id} value={p.id}>{p.sku} — {p.name}</option>
+                                  ))}
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                type="number" min="0.01" step="0.01"
+                                value={line.quantity}
+                                onChange={(e) => updateLine(i, 'quantity', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number" min="0" max="100" step="0.01"
+                                value={line.discountPct}
+                                onChange={(e) => updateLine(i, 'discountPct', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              {lines.length > 1 && (
+                                <button type="button" className="sal-remove-line-icon" onClick={() => removeLine(i)} aria-label="Quitar línea">×</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -454,7 +499,15 @@ export default function Sales() {
                   referencia del producto) al confirmar la venta.
                 </p>
 
-                <button type="button" className="sal-add-line" onClick={addLine}>+ Agregar línea</button>
+                <button
+                  type="button"
+                  className="sal-add-line"
+                  onClick={addLine}
+                  disabled={lines.length >= products.length}
+                  aria-label="Agregar línea"
+                >
+                  <PlusIcon />
+                </button>
 
                 {formError && <p className="form-error" style={{ marginBottom: 0 }}>{formError}</p>}
                 {formSuccess && <p className="sal-form-success" style={{ marginBottom: 0 }}>{formSuccess}</p>}
@@ -568,6 +621,77 @@ export default function Sales() {
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isPriceListCreateModalOpen && (
+        <div className="modal-overlay" onClick={closeCreatePriceListModal}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Nueva lista de precios</h2>
+              <button type="button" className="modal-close" onClick={closeCreatePriceListModal} aria-label="Cerrar">
+                <CloseIcon />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePriceList}>
+              <div className="modal-body">
+                <div className="field">
+                  <label htmlFor="pl-name">Nombre</label>
+                  <input
+                    id="pl-name"
+                    value={newPriceListName}
+                    onChange={(e) => setNewPriceListName(e.target.value)}
+                    placeholder="Ej. Temporada Navidad"
+                  />
+                </div>
+
+                <div className="field">
+                  <label htmlFor="pl-description">Descripción (opcional)</label>
+                  <input
+                    id="pl-description"
+                    value={newPriceListDescription}
+                    onChange={(e) => setNewPriceListDescription(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
+                  <div className="field">
+                    <label htmlFor="pl-start">Vigente desde (opcional)</label>
+                    <input
+                      id="pl-start"
+                      type="date"
+                      value={newPriceListStartDate}
+                      max={newPriceListEndDate || undefined}
+                      onChange={(e) => setNewPriceListStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="pl-end">Vigente hasta (opcional)</label>
+                    <input
+                      id="pl-end"
+                      type="date"
+                      value={newPriceListEndDate}
+                      min={newPriceListStartDate || undefined}
+                      onChange={(e) => setNewPriceListEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <p className="sal-form-note">
+                  Sin fechas queda vigente indefinidamente. Nace sin precios cargados — se agregan después desde
+                  "Editar precios".
+                </p>
+
+                {priceListFormError && <p className="form-error" style={{ marginBottom: 0 }}>{priceListFormError}</p>}
+              </div>
+
+              <div className="modal-footer">
+                <button type="submit" className="btn-primary">CREAR LISTA</button>
+                <button type="button" className="btn-secondary" onClick={closeCreatePriceListModal}>Cerrar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -6,6 +6,7 @@ public interface IPriceListService
 {
     Task<IReadOnlyList<PriceListDto>> GetAllAsync();
     Task<PriceListDto?> GetByIdAsync(long id);
+    Task<PriceListDto> CreateAsync(CreatePriceListDto request);
 
     Task<IReadOnlyList<PriceListItemDto>> GetItemsAsync(long priceListId);
     Task SetItemPriceAsync(long priceListId, long productId, decimal price);

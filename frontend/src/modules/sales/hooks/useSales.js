@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { getUser } from '../../../shared/apiClient';
 import { getBranches } from '../../auth/api/branchesApi';
 import { getProducts } from '../../catalog/api/productsApi';
-import { getPriceLists, getPriceListItems, setPriceListItemPrice, removePriceListItem } from '../api/priceListsApi';
+import {
+  getPriceLists,
+  createPriceList,
+  getPriceListItems,
+  setPriceListItemPrice,
+  removePriceListItem,
+} from '../api/priceListsApi';
 import { getSales, getSalesKpiSummary, createSale } from '../api/salesApi';
 import { startOfDayIso, endOfDayIso } from '../../../shared/dateRange';
 
@@ -40,11 +46,24 @@ export function useSales() {
   const [priceListId, setPriceListId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [lines, setLines] = useState([emptyLine()]);
+  // Filtro rápido del <select> de producto en cada línea — el catálogo puede
+  // tener muchos productos y un <select> plano se vuelve difícil de recorrer.
+  const [productSearch, setProductSearch] = useState('');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
 
   const [viewSale, setViewSale] = useState(null);
+
+  // Alta de listas de precio (RF-18) — solo el Admin general, para poder
+  // manejar precios distintos por temporada sin tocar el precio de
+  // referencia del catálogo.
+  const [isPriceListCreateModalOpen, setIsPriceListCreateModalOpen] = useState(false);
+  const [newPriceListName, setNewPriceListName] = useState('');
+  const [newPriceListDescription, setNewPriceListDescription] = useState('');
+  const [newPriceListStartDate, setNewPriceListStartDate] = useState('');
+  const [newPriceListEndDate, setNewPriceListEndDate] = useState('');
+  const [priceListFormError, setPriceListFormError] = useState('');
 
   const [editingPriceList, setEditingPriceList] = useState(null);
   const [priceListItems, setPriceListItems] = useState([]);
@@ -119,6 +138,7 @@ export function useSales() {
     setPriceListId('');
     setCustomerName('');
     setLines([emptyLine()]);
+    setProductSearch('');
   }
 
   function openSaleModal() {
@@ -208,6 +228,43 @@ export function useSales() {
     setPriceListItems([]);
   }
 
+  function openCreatePriceListModal() {
+    setNewPriceListName('');
+    setNewPriceListDescription('');
+    setNewPriceListStartDate('');
+    setNewPriceListEndDate('');
+    setPriceListFormError('');
+    setIsPriceListCreateModalOpen(true);
+  }
+
+  function closeCreatePriceListModal() {
+    setIsPriceListCreateModalOpen(false);
+  }
+
+  async function handleCreatePriceList(e) {
+    e.preventDefault();
+    setPriceListFormError('');
+
+    if (!newPriceListName.trim()) {
+      setPriceListFormError('El nombre es obligatorio.');
+      return;
+    }
+
+    try {
+      await createPriceList({
+        name: newPriceListName.trim(),
+        description: newPriceListDescription.trim() || null,
+        startDate: newPriceListStartDate || null,
+        endDate: newPriceListEndDate || null,
+      });
+      setIsPriceListCreateModalOpen(false);
+      const priceListsData = await getPriceLists();
+      setPriceLists(priceListsData);
+    } catch (err) {
+      setPriceListFormError(err.message || 'No se pudo crear la lista de precios.');
+    }
+  }
+
   // Cambio local inmediato (sin guardar todavía) para que el input responda
   // al tipeo — el guardado real es explícito por fila (handleSavePrice),
   // mismo criterio que los formularios de umbral en Inventario.
@@ -252,6 +309,13 @@ export function useSales() {
     }
   }
 
+  const visibleProducts = productSearch
+    ? products.filter((p) => {
+        const term = productSearch.trim().toLowerCase();
+        return p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term);
+      })
+    : products;
+
   const visiblePriceListItems = priceListItemSearch
     ? priceListItems.filter((item) => {
         const term = priceListItemSearch.trim().toLowerCase();
@@ -267,6 +331,9 @@ export function useSales() {
     isGeneralAdmin,
     canCreateSale,
     products,
+    visibleProducts,
+    productSearch,
+    setProductSearch,
     priceLists,
     sales,
     salesPage,
@@ -314,5 +381,19 @@ export function useSales() {
     updatePriceListItemDraft,
     handleSavePrice,
     handleRemovePrice,
+
+    isPriceListCreateModalOpen,
+    openCreatePriceListModal,
+    closeCreatePriceListModal,
+    newPriceListName,
+    setNewPriceListName,
+    newPriceListDescription,
+    setNewPriceListDescription,
+    newPriceListStartDate,
+    setNewPriceListStartDate,
+    newPriceListEndDate,
+    setNewPriceListEndDate,
+    priceListFormError,
+    handleCreatePriceList,
   };
 }

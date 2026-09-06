@@ -1,7 +1,11 @@
-import { getJson, putJson, deleteJson } from '../../../shared/apiClient';
+import { getJson, postJson, putJson, deleteJson } from '../../../shared/apiClient';
 
 export function getPriceLists() {
   return getJson('/api/price-lists');
+}
+
+export function createPriceList(priceList) {
+  return postJson('/api/price-lists', priceList);
 }
 
 export function getPriceListItems(priceListId) {

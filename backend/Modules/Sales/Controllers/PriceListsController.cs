@@ -25,6 +25,14 @@ public class PriceListsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<PriceListDto>>> GetAll() =>
         Ok(await _priceListService.GetAllAsync());
 
+    // Crear una lista nueva (ej. "Temporada Navidad") es una decisión
+    // comercial — a pedido explícito del usuario, solo el Admin general
+    // puede hacerlo, ni Gerente ni Operador.
+    [HttpPost]
+    [Authorize(Roles = RoleCodes.GeneralAdmin)]
+    public async Task<ActionResult<PriceListDto>> Create(CreatePriceListDto request) =>
+        Ok(await _priceListService.CreateAsync(request));
+
     [HttpGet("{id:long}")]
     public async Task<ActionResult<PriceListDto>> GetById(long id)
     {

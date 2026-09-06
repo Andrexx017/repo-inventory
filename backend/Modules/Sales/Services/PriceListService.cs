@@ -29,6 +29,35 @@ public class PriceListService : IPriceListService
         return priceList is null ? null : ToDto(priceList);
     }
 
+    // Solo el Administrador general crea listas de precio (decisión de
+    // negocio explícita del usuario) — es lo que le permite manejar precios
+    // distintos por temporada sin tocar el precio de referencia del catálogo.
+    public async Task<PriceListDto> CreateAsync(CreatePriceListDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            throw new DomainException("El nombre de la lista de precios es obligatorio.");
+        }
+
+        if (request.StartDate is not null && request.EndDate is not null && request.EndDate < request.StartDate)
+        {
+            throw new DomainException("La fecha de fin no puede ser anterior a la fecha de inicio.");
+        }
+
+        var priceList = new PriceList
+        {
+            Name = request.Name,
+            Description = request.Description,
+            Active = true,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+        };
+
+        await _priceLists.AddAsync(priceList);
+
+        return ToDto(priceList);
+    }
+
     // Devuelve TODOS los productos activos del catálogo, no solo los que ya
     // tienen precio en esta lista — así el modal de edición puede mostrar
     // cualquier producto y dejar cargarle un precio, en vez de solo poder

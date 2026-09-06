@@ -19,6 +19,12 @@ public class PriceListRepository : IPriceListRepository
     public Task<PriceList?> GetByIdAsync(long id) =>
         _db.PriceLists.FirstOrDefaultAsync(pl => pl.Id == id);
 
+    public async Task AddAsync(PriceList priceList)
+    {
+        await _db.PriceLists.AddAsync(priceList);
+        await _db.SaveChangesAsync();
+    }
+
     public async Task<decimal?> GetPriceAsync(long priceListId, long productId)
     {
         var item = await _db.PriceListItems.FirstOrDefaultAsync(

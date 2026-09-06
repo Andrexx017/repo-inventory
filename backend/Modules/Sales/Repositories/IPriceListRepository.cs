@@ -7,6 +7,10 @@ public interface IPriceListRepository
     Task<IReadOnlyList<PriceList>> GetAllAsync();
     Task<PriceList?> GetByIdAsync(long id);
 
+    // RF-18: alta de una lista nueva (ej. "Temporada Navidad") — nace sin
+    // ítems, se cargan después uno por uno con UpsertItemAsync.
+    Task AddAsync(PriceList priceList);
+
     // RF-18: resuelve el precio de un producto puntual dentro de una lista —
     // null si esa lista no tiene un precio definido para ese producto.
     Task<decimal?> GetPriceAsync(long priceListId, long productId);

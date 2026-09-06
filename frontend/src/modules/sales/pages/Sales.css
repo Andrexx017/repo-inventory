@@ -79,6 +79,13 @@
     border-collapse: collapse;
 }
 
+/* Solo el modal "Registrar venta" fija el ancho de columnas (con <colgroup>)
+   — "Ver comprobante" y "Editar precios" tienen otra cantidad de columnas y
+   siguen con auto-layout. */
+.sal-lines-table-fixed table {
+    table-layout: fixed;
+}
+
 .sal-lines-table th {
     text-align: left;
     font-family: var(--font-mono);
@@ -119,20 +126,51 @@
 }
 
 .sal-add-line {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
     border: 1px dashed var(--border);
     border-radius: 6px;
-    padding: 8px 14px;
-    font-size: 12.5px;
-    font-weight: 600;
     background: none;
     color: var(--text-muted);
     cursor: pointer;
     margin-bottom: 16px;
 }
 
+.sal-add-line:hover {
+    color: var(--text);
+    border-color: var(--text-muted);
+}
+
+.sal-add-line:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Texto — se usa fuera de las líneas dinámicas de "Registrar venta" (ej.
+   "Quitar" un precio ya cargado en "Editar precios"), donde sí hay lugar de
+   sobra para la palabra completa. */
 .sal-remove-line {
     color: var(--danger);
     font-size: 12px;
+    font-weight: 600;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+/* Ícono — línea dinámica de "Registrar venta" (agregar/quitar producto). */
+.sal-remove-line-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    color: var(--danger);
+    font-size: 17px;
+    line-height: 1;
     font-weight: 600;
     background: none;
     border: none;
