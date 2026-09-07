@@ -4,6 +4,7 @@ import { getUser } from '../../../shared/apiClient';
 import { getBranches } from '../../auth/api/branchesApi';
 import { getProducts, getProductCategories } from '../../catalog/api/productsApi';
 import { startOfDayIso, endOfDayIso } from '../../../shared/dateRange';
+import { notifyDataChanged } from '../../../shared/notifyBus';
 import {
   getInventoryByBranch,
   getInventoryPaged,
@@ -337,6 +338,7 @@ export function useInventory() {
       } else {
         setMovementsPage(1);
       }
+      notifyDataChanged();
     } catch (err) {
       setFormError(err.message || 'No se pudo registrar el movimiento.');
     }
@@ -367,6 +369,7 @@ export function useInventory() {
       setThresholdEditingItem(null);
       await loadInventoryData();
       await loadPagedItems();
+      notifyDataChanged();
     } catch (err) {
       setThresholdError(err.message || 'No se pudo actualizar el umbral.');
     }
@@ -379,6 +382,7 @@ export function useInventory() {
     try {
       await resolveAlert(branchId, alertId);
       await loadInventoryData();
+      notifyDataChanged();
     } catch (err) {
       setAlertError(err.message || 'No se pudo resolver la alerta.');
     } finally {

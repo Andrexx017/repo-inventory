@@ -16,6 +16,7 @@ import {
   receiveTransfer,
 } from '../api/transfersApi';
 import { startOfDayIso, endOfDayIso } from '../../../shared/dateRange';
+import { notifyDataChanged } from '../../../shared/notifyBus';
 
 const TRANSFERS_PAGE_SIZE = 25;
 
@@ -305,6 +306,7 @@ export function useTransfers() {
       resetTransferForm();
       setFormSuccess(`Transferencia ${transfer.transferNumber} solicitada.`);
       await loadTransfers();
+      notifyDataChanged();
     } catch (err) {
       setFormError(err.message || 'No se pudo solicitar la transferencia.');
     }
@@ -357,6 +359,7 @@ export function useTransfers() {
       await prepareTransfer(branchId, prepareTarget.id, { notes: prepareNotes || null, items });
       setPrepareTarget(null);
       await loadTransfers();
+      notifyDataChanged();
     } catch (err) {
       setPrepareError(err.message || 'No se pudo preparar la transferencia.');
     }
@@ -398,6 +401,7 @@ export function useTransfers() {
       await shipTransfer(branchId, shipTarget.id, dto);
       setShipTarget(null);
       await loadTransfers();
+      notifyDataChanged();
     } catch (err) {
       setShipError(err.message || 'No se pudo despachar la transferencia.');
     }
@@ -454,6 +458,7 @@ export function useTransfers() {
       });
       setReceiveTarget(null);
       await loadTransfers();
+      notifyDataChanged();
     } catch (err) {
       setReceiveError(err.message || 'No se pudo confirmar la recepción.');
     }
@@ -464,6 +469,7 @@ export function useTransfers() {
     try {
       await approveTransfer(branchId, transfer.id);
       await loadTransfers();
+      notifyDataChanged();
     } catch (err) {
       setApproveError(err.message || 'No se pudo aprobar la transferencia.');
     }
@@ -495,6 +501,7 @@ export function useTransfers() {
       });
       closeView();
       await loadTransfers();
+      notifyDataChanged();
     } catch (err) {
       setResendError(err.message || 'No se pudo reenviar el faltante.');
     }
@@ -508,6 +515,7 @@ export function useTransfers() {
     try {
       await cancelTransfer(branchId, transfer.id);
       await loadTransfers();
+      notifyDataChanged();
     } catch (err) {
       setCancelError(err.message || 'No se pudo cancelar la transferencia.');
     }

@@ -3,6 +3,7 @@ import { getUser } from '../apiClient';
 import { getAlerts, getInventoryByBranch } from '../../modules/inventory/api/inventoryApi';
 import { getTransfers } from '../../modules/transfers/api/transfersApi';
 import { getPurchaseOrders } from '../../modules/purchases/api/purchaseOrdersApi';
+import { onDataChanged } from '../notifyBus';
 
 // "Casi en tiempo real" a pedido explícito del usuario: no hay push real
 // (no hay WebSockets/SignalR en el proyecto), así que esto sigue siendo
@@ -39,6 +40,35 @@ function saveToastedIds(ids) {
   }
 }
 
+// Notificaciones "dismissible": eventos ya terminados (denegada/cancelada/
+// orden cancelada) que no requieren ninguna acción — a diferencia de
+// "esperando tu aprobación" o "en tránsito", que se resuelven solas cuando el
+// estado real cambia, estas se quedan en la campana hasta DECIDED_ORDER_WINDOW_MS
+// aunque el usuario ya las haya visto (pedido explícito del usuario: una vez
+// revisada, no debe seguir apareciendo). El descarte es manual (botón × en la
+// campana) y persiste en localStorage para sobrevivir a un remount de
+// NotificationBell (misma razón que TOASTED_IDS_KEY).
+const DISMISSED_IDS_KEY = 'dismissedNotificationIds_v1';
+const MAX_DISMISSED_IDS = 300;
+
+function loadDismissedIds() {
+  try {
+    const raw = localStorage.getItem(DISMISSED_IDS_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissedIds(ids) {
+  try {
+    localStorage.setItem(DISMISSED_IDS_KEY, JSON.stringify(Array.from(ids).slice(-MAX_DISMISSED_IDS)));
+  } catch {
+    // Igual que saveToastedIds: no crítico si falla, en el peor caso vuelve a
+    // aparecer una notificación ya descartada.
+  }
+}
+
 // Notificaciones de la campana: alertas de stock pendientes (RF-09/RF-34) +
 // todo el ciclo de vida de una transferencia (RF-20 a RF-24: solicitada →
 // esperando aprobación del Gerente destino → aprobada/denegada → en tránsito
@@ -68,6 +98,10 @@ export function useNotifications() {
   // cuando NotificationBell se remonta (pasa en cada navegación entre
   // pantallas, porque AppShell se renderiza por página, no una sola vez).
   const toastedIdsRef = useRef(loadToastedIds());
+  // A diferencia de toastedIdsRef, esto SÍ debe re-renderizar (el usuario
+  // hace clic en × y espera que la notificación desaparezca ya mismo) —
+  // por eso es estado de React y no un ref.
+  const [dismissedIds, setDismissedIds] = useState(loadDismissedIds);
 
   const load = useCallback(async () => {
     if (!branchId) {
@@ -163,7 +197,25 @@ export function useNotifications() {
   useEffect(() => {
     load();
     const interval = setInterval(load, POLL_MS);
-    return () => clearInterval(interval);
+    // Se refresca de inmediato ante 2 señales que no pueden esperar los POLL_MS:
+    // 1) otra parte de la app terminó una mutación relevante (notifyDataChanged,
+    //    ver useTransfers/useInventory/usePurchases) — sin esto, una alerta
+    //    resuelta o una transferencia recibida se siguen viendo "pendientes"
+    //    en la campana hasta el próximo tick del timer.
+    // 2) el usuario vuelve a esta pestaña después de haber actuado en OTRA
+    //    pestaña — Chrome/Firefox limitan setInterval en pestañas en segundo
+    //    plano a ~1 vez por minuto, así que sin este listener la campana podía
+    //    quedar desactualizada mucho más de POLL_MS.
+    const offBus = onDataChanged(load);
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') load();
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      offBus();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [load]);
 
   // `toastable`: además de aparecer en la campana, dispara la notificación
@@ -176,7 +228,26 @@ export function useNotifications() {
     // (ej. otra venta) sin que la alerta se resolviera y volviera a
     // disparar, esos valores quedan viejos. Se cruza con el inventario real
     // (currentQuantity/minimumStock) para mostrar el stock vigente.
-    ...alerts.map((a) => {
+    //
+    // Red de seguridad: además de mostrar el valor vigente, se re-valida la
+    // condición vigente antes de listar la alerta. `alerts` viene tal cual la
+    // dejó el backend (status === 'pending'), pero esa fila solo se resuelve
+    // sola cuando ALGÚN movimiento/ajuste/recepción que toca ese producto pasa
+    // por CheckStockAlertsAsync — si el stock se movió por un camino que
+    // todavía no llama a ese chequeo (el bug real que reportó el usuario:
+    // ver PurchaseReceiptService), la fila se queda 'pending' para siempre en
+    // la base aunque el stock ya esté bien. `items` (inventario real, mismo
+    // poll) es la fuente de verdad más fresca que tenemos en el frontend, así
+    // que si contradice al 'pending' del backend, gana el dato vigente.
+    ...alerts
+      .filter((a) => {
+        const item = items.find((i) => i.productId === a.productId);
+        if (!item) return true; // sin dato vigente para cruzar, se confía en el backend
+        return a.alertType === 'low_stock'
+          ? item.minimumStock > 0 && item.currentQuantity <= item.minimumStock
+          : item.maximumStock != null && item.maximumStock > 0 && item.currentQuantity >= item.maximumStock;
+      })
+      .map((a) => {
       const item = items.find((i) => i.productId === a.productId);
       const currentQuantity = item ? item.currentQuantity : a.quantityAtTrigger;
       const liveThreshold = a.alertType === 'low_stock' ? item?.minimumStock : item?.maximumStock;
@@ -229,6 +300,7 @@ export function useNotifications() {
       to: '/transfers',
       state: { openTransferId: t.id },
       toastable: true,
+      dismissible: true,
     })),
     ...transfersCancelledByOrigin.map((t) => ({
       id: `transfer-cancelled-origin-${t.id}`,
@@ -238,6 +310,7 @@ export function useNotifications() {
       to: '/transfers',
       state: { openTransferId: t.id },
       toastable: true,
+      dismissible: true,
     })),
     ...cancelledOrders.map((o) => ({
       id: `po-cancelled-${o.id}`,
@@ -246,6 +319,7 @@ export function useNotifications() {
       severity: 'danger',
       to: '/purchases',
       toastable: true,
+      dismissible: true,
     })),
   ];
 
@@ -276,12 +350,30 @@ export function useNotifications() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Descarte manual y permanente de una notificación "dismissible" (transferencia
+  // denegada/cancelada, orden cancelada) — a pedido explícito del usuario: una
+  // vez que ya revisó la campana y vio el estado, no debe seguir saliendo,
+  // en vez de esperar los 3 días de DECIDED_ORDER_WINDOW_MS.
+  const dismissNotification = useCallback((id) => {
+    setDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      saveDismissedIds(next);
+      return next;
+    });
+  }, []);
+
+  const visibleNotifications = notifications.filter(
+    (n) => !n.dismissible || !dismissedIds.has(n.id)
+  );
+
   return {
-    notifications,
+    notifications: visibleNotifications,
     loading,
     hasBranch: Boolean(branchId),
     reload: load,
     toasts,
     dismissToast,
+    dismissNotification,
   };
 }

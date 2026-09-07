@@ -34,11 +34,9 @@
 
 .notif-item {
     display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 10px 14px;
+    align-items: stretch;
+    gap: 6px;
     border-bottom: 1px solid var(--border);
-    text-decoration: none;
 }
 
 .notif-item:last-child {
@@ -47,6 +45,36 @@
 
 .notif-item:hover {
     background: var(--bg);
+}
+
+.notif-item-link {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 14px;
+    text-decoration: none;
+}
+
+.notif-item-dismiss {
+    flex-shrink: 0;
+    align-self: center;
+    margin-right: 8px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.notif-item-dismiss:hover {
+    background: var(--border);
+    color: var(--text);
 }
 
 .notif-item-title {

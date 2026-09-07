@@ -12,6 +12,7 @@ import {
   getPurchaseReceipts,
 } from '../api/purchaseOrdersApi';
 import { startOfDayIso, endOfDayIso } from '../../../shared/dateRange';
+import { notifyDataChanged } from '../../../shared/notifyBus';
 
 const ORDERS_PAGE_SIZE = 25;
 
@@ -226,6 +227,7 @@ export function usePurchases() {
     try {
       await cancelPurchaseOrder(branchId, order.id);
       await loadOrders();
+      notifyDataChanged();
     } catch (err) {
       setError(err.message || 'No se pudo cancelar la orden.');
     }
@@ -290,6 +292,7 @@ export function usePurchases() {
       await createPurchaseReceipt(branchId, receiptOrder.id, { notes: receiptNotes || null, items });
       setReceiptOrder(null);
       await loadOrders();
+      notifyDataChanged();
     } catch (err) {
       setReceiptError(err.message || 'No se pudo confirmar la recepción.');
     }

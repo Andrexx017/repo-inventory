@@ -5,7 +5,7 @@ import { ToastStack } from './Toast';
 import './NotificationBell.css';
 
 export default function NotificationBell() {
-    const { notifications, loading, hasBranch, toasts, dismissToast } = useNotifications();
+    const { notifications, loading, hasBranch, toasts, dismissToast, dismissNotification } = useNotifications();
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
 
@@ -50,16 +50,26 @@ export default function NotificationBell() {
                     )}
 
                     {hasBranch && !loading && notifications.map((n) => (
-                        <Link
-                            key={n.id}
-                            to={n.to}
-                            state={n.state}
-                            className={`notif-item notif-item-${n.severity}`}
-                            onClick={() => setOpen(false)}
-                        >
-                            <span className="notif-item-title">{n.title}</span>
-                            <span className="notif-item-sub">{n.subtitle}</span>
-                        </Link>
+                        <div key={n.id} className={`notif-item notif-item-${n.severity}`}>
+                            <Link to={n.to} state={n.state} className="notif-item-link" onClick={() => setOpen(false)}>
+                                <span className="notif-item-title">{n.title}</span>
+                                <span className="notif-item-sub">{n.subtitle}</span>
+                            </Link>
+                            {n.dismissible && (
+                                <button
+                                    type="button"
+                                    className="notif-item-dismiss"
+                                    aria-label="Descartar notificación"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        dismissNotification(n.id);
+                                    }}
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
                     ))}
                 </div>
             )}

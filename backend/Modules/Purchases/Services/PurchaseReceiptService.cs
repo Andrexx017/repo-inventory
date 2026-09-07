@@ -1,5 +1,6 @@
 using Inventory.Modules.Inventory.Entities;
 using Inventory.Modules.Inventory.Repositories;
+using Inventory.Modules.Inventory.Services;
 using Inventory.Modules.Purchases.Dtos;
 using Inventory.Modules.Purchases.Entities;
 using Inventory.Modules.Purchases.Repositories;
@@ -17,15 +18,18 @@ public class PurchaseReceiptService : IPurchaseReceiptService
     private readonly IPurchaseOrderRepository _purchaseOrders;
     private readonly IPurchaseReceiptRepository _purchaseReceipts;
     private readonly IInventoryRepository _inventory;
+    private readonly IInventoryService _inventoryService;
 
     public PurchaseReceiptService(
         IPurchaseOrderRepository purchaseOrders,
         IPurchaseReceiptRepository purchaseReceipts,
-        IInventoryRepository inventory)
+        IInventoryRepository inventory,
+        IInventoryService inventoryService)
     {
         _purchaseOrders = purchaseOrders;
         _purchaseReceipts = purchaseReceipts;
         _inventory = inventory;
+        _inventoryService = inventoryService;
     }
 
     public async Task<PurchaseReceiptDto> CreateAsync(
@@ -114,6 +118,12 @@ public class PurchaseReceiptService : IPurchaseReceiptService
                 4, MidpointRounding.AwayFromZero);
             item.CurrentQuantity = newQuantity;
             item.UpdatedAt = DateTimeOffset.UtcNow;
+
+            // RF-09/RF-34: a diferencia de RegisterIncomingMovementAsync, esta
+            // recepción escribe CurrentQuantity directo sobre el item (no pasa por
+            // InventoryService) — sin este chequeo, una alerta de stock bajo que
+            // esta recepción resuelve se queda 'pending' para siempre en la campana.
+            await _inventoryService.CheckStockAlertsAsync(item, receivedByUserId);
 
             _inventory.AddMovement(new InventoryMovement
             {
