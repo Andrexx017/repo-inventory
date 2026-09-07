@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using Inventory.Infrastructure.Email;
 using Inventory.Modules.Auth.Repositories;
 using Inventory.Modules.Inventory.Services;
 using Inventory.Modules.Reports.Dtos;
@@ -15,12 +17,14 @@ namespace Inventory.Modules.Reports.Services;
 public class ReportService : IReportService
 {
     private static readonly HashSet<string> AllowedReportTypes = ["inventory-movements", "sales", "transfers"];
+    private static readonly Regex EmailRegex = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
 
     private readonly IBranchRepository _branches;
     private readonly IInventoryService _inventoryService;
     private readonly ISaleService _saleService;
     private readonly ITransferService _transferService;
     private readonly IReadOnlyDictionary<string, IReportExporter> _exporters;
+    private readonly IEmailSender _emailSender;
 
     // IEnumerable<IReportExporter>: ASP.NET Core resuelve TODAS las
     // implementaciones registradas de la interfaz (Program.cs registra
@@ -31,13 +35,15 @@ public class ReportService : IReportService
         IInventoryService inventoryService,
         ISaleService saleService,
         ITransferService transferService,
-        IEnumerable<IReportExporter> exporters)
+        IEnumerable<IReportExporter> exporters,
+        IEmailSender emailSender)
     {
         _branches = branches;
         _inventoryService = inventoryService;
         _saleService = saleService;
         _transferService = transferService;
         _exporters = exporters.ToDictionary(e => e.Format);
+        _emailSender = emailSender;
     }
 
     public async Task<(byte[] Content, string ContentType, string FileName)> ExportAsync(
@@ -74,6 +80,45 @@ public class ReportService : IReportService
         var fileName = $"{reportType}_{branch.Code}_{from:yyyyMMdd}-{to:yyyyMMdd}.{exporter.FileExtension}";
 
         return (content, exporter.ContentType, fileName);
+    }
+
+    public async Task<int> SendByEmailAsync(
+        long branchId, string reportType, string format, DateTimeOffset from, DateTimeOffset to,
+        IReadOnlyList<string> recipientEmails)
+    {
+        var emails = recipientEmails
+            .Select(e => e.Trim())
+            .Where(e => e.Length > 0)
+            .Distinct()
+            .ToList();
+
+        if (emails.Count == 0)
+        {
+            throw new DomainException("Debe indicar al menos un correo destinatario.");
+        }
+
+        foreach (var email in emails)
+        {
+            if (!EmailRegex.IsMatch(email))
+            {
+                throw new DomainException($"El correo '{email}' no es válido.");
+            }
+        }
+
+        // Mismo archivo que descarga la exportación manual (ExportAsync arriba)
+        // — el envío por correo no duplica el armado de la tabla, solo lo adjunta.
+        var (content, contentType, fileName) = await ExportAsync(branchId, reportType, format, from, to);
+
+        foreach (var email in emails)
+        {
+            await _emailSender.SendWithAttachmentAsync(
+                email,
+                $"SUCURSALIA — Reporte ({fileName})",
+                $"<p>Se adjunta el reporte <strong>{fileName}</strong>, enviado manualmente desde SUCURSALIA.</p>",
+                fileName, content, contentType);
+        }
+
+        return emails.Count;
     }
 
     private async Task<ReportTable> BuildInventoryMovementsTableAsync(

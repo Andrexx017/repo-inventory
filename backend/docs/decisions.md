@@ -226,3 +226,22 @@ Dos módulos no tienen `Repositories/` ni `Entities/` propias porque no tienen t
 - **Migrar el filtro de fecha a una consulta SQL con `WHERE` en vez de LINQ-to-Objects en memoria** — descartada por ahora, mismo criterio ya aplicado en Dashboard/RF-28: el volumen esperado de esta prueba no lo justifica; queda identificado como punto de optimización si el volumen creciera.
 
 **Consecuencias:** dos dependencias nuevas en `inventory.csproj` (`QuestPDF`, `ClosedXML`) — ninguna requiere infraestructura adicional (no exigen un servicio externo, corren embebidas en el proceso del backend). El PDF se genera en memoria (`byte[]`) y se devuelve directo en la respuesta HTTP (`File(...)`), sin escribir a disco temporal.
+
+---
+
+## Envío manual de reportes por correo: extensión de `IReportService`/`IEmailSender`, sin automatización recurrente
+
+**Contexto:** sobre la exportación manual de reportes (RF-35, arriba) se agregó la posibilidad de mandar ese mismo archivo por correo a demanda ("Enviar por correo ahora" en el frontend), sin descargarlo al navegador. Se evaluó también una automatización recurrente (tabla propia + `BackgroundService` revisando cada minuto), pero se descartó — ver "Alternativas consideradas".
+
+**Decisión:**
+- `IReportService.SendByEmailAsync(...)` reutiliza el mismo `ExportAsync(...)` que arma el archivo para la descarga manual, y lo adjunta con `IEmailSender.SendWithAttachmentAsync(...)` (extensión de `IEmailSender`, que ya usaba MailKit para el correo de recuperación de contraseña y las alertas de stock).
+- Nuevo endpoint `POST /api/reports/{branchId}/send-now`, sobre el mismo rango Desde/Hasta que la exportación manual.
+- Dos acciones independientes en el frontend, sin estado ni tabla propia: **"Exportar ahora"** (solo descarga) y **"Enviar por correo ahora"** (genera y manda un correo, ya).
+
+**Justificación:** reutilizar `ExportAsync` evita un segundo camino de generación de reportes — cualquier cambio futuro a `BuildInventoryMovementsTableAsync`/`BuildSalesTableAsync`/`BuildTransfersTableAsync` beneficia tanto a la descarga como al envío por correo, sin tocar esa lógica dos veces.
+
+**Alternativas consideradas:**
+- **Automatización recurrente** (tabla `scheduled_reports` + `BackgroundService` con recurrencia diaria/semanal/mensual configurable) — se implementó y se descartó en la misma entrega: agregaba una tabla y un proceso corriendo todo el tiempo de vida del backend para un caso de uso que, en la práctica, no se pudo validar funcionando de punta a punta en el tiempo disponible. Queda fuera de alcance; "Enviar por correo ahora" cubre la necesidad real (mandar el reporte sin tener que descargarlo y adjuntarlo a mano) sin ese costo.
+- **Hangfire/Quartz** — ni siquiera se llegó a evaluar en profundidad una vez descartada la automatización recurrente en sí.
+
+**Consecuencias:** ninguna tabla ni proceso de fondo nuevos — el envío por correo es una operación sincrónica más, dentro del mismo ciclo de vida de un request HTTP normal.

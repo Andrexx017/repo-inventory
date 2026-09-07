@@ -1,37 +1,15 @@
-.rep-topline {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+/* Dos columnas: configuración (izquierda, ancho fijo-ish) + vista previa
+   (derecha, ocupa el resto) — mismo quiebre a una sola columna que el resto
+   de formularios del sistema (.form-grid en dataTable.css). */
+.rep-layout {
+    display: grid;
+    grid-template-columns: minmax(300px, 400px) 1fr;
     gap: 20px;
-    margin-bottom: 18px;
+    align-items: start;
 }
 
-.rep-branch-picker {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 6px;
-}
-
-.rep-branch-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.rep-branch-row select {
-    width: 240px;
-    padding: 9px 11px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-family: var(--font-sans);
-    font-size: 13px;
-}
-
-.rep-form {
-    max-width: 640px;
+.rep-config-card {
+    margin: 0;
 }
 
 .rep-grid {
@@ -68,7 +46,37 @@
     color: var(--accent);
 }
 
+.rep-export-only-btn {
+    width: 100%;
+    justify-content: center;
+    margin: 4px 0 16px;
+}
+
+.rep-send-now-btn {
+    width: 100%;
+    justify-content: center;
+    margin: 4px 0 0;
+}
+
+.rep-success {
+    color: var(--success);
+    font-size: 13px;
+    margin: 0 0 12px;
+}
+
 /* Vista previa (reusa .table-card/.data-table de dataTable.css) */
+
+.rep-preview-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+}
+
+.rep-preview-panel .table-card {
+    margin-top: 14px;
+    border: none;
+}
 
 .rep-preview-header {
     display: flex;
@@ -85,20 +93,7 @@
 }
 
 @media (max-width: 900px) {
-    .rep-topline {
-        flex-direction: column;
-    }
-
-    .rep-branch-picker {
-        align-items: flex-start;
-        width: 100%;
-    }
-
-    .rep-branch-row select {
-        width: 100%;
-    }
-
-    .rep-grid {
+    .rep-layout {
         grid-template-columns: 1fr;
     }
 }

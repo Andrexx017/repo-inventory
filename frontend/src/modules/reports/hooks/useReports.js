@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getUser } from '../../../shared/apiClient';
 import { getBranches } from '../../auth/api/branchesApi';
 import { startOfDayIso, endOfDayIso, todayInputValue } from '../../../shared/dateRange';
-import { exportReport } from '../api/reportsApi';
+import { exportReport, sendReportByEmail } from '../api/reportsApi';
 import { getMovements } from '../../inventory/api/inventoryApi';
 import { getSales } from '../../sales/api/salesApi';
 import { getTransfers } from '../../transfers/api/transfersApi';
@@ -15,7 +15,7 @@ export const REPORT_TYPES = [
 
 export const REPORT_FORMATS = [
   { value: 'pdf', label: 'PDF', extension: 'pdf' },
-  { value: 'excel', label: 'Excel', extension: 'xlsx' },
+  { value: 'excel', label: 'Excel (.xlsx)', extension: 'xlsx' },
 ];
 
 // Rangos rápidos sobre los inputs Desde/Hasta — evita tener que picotear el
@@ -28,6 +28,7 @@ export const QUICK_RANGES = [
 ];
 
 const PREVIEW_PAGE_SIZE = 8;
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 function firstDayOfMonthInputValue() {
   const now = new Date();
@@ -47,6 +48,15 @@ function previousMonthRange() {
   return { from: firstDay.toISOString().slice(0, 10), to: lastDay.toISOString().slice(0, 10) };
 }
 
+// "correo1@x.com; correo2@x.com" o separados por coma — recorta espacios y
+// descarta vacíos (ej. un ";" de más al final).
+function parseEmails(raw) {
+  return raw
+    .split(/[;,]/)
+    .map((e) => e.trim())
+    .filter(Boolean);
+}
+
 export function useReports() {
   const user = getUser();
   const isGeneralAdmin = user?.role === 'general_admin';
@@ -60,8 +70,17 @@ export function useReports() {
   const [to, setToRaw] = useState(todayInputValue());
   const [activeRange, setActiveRange] = useState('this-month');
 
-  const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState('');
+  const [recipientEmailsInput, setRecipientEmailsInput] = useState('');
+
+  // "Enviar por correo ahora" — genera el reporte del rango elegido y lo
+  // manda ya, sin descargarlo al navegador.
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [sendEmailError, setSendEmailError] = useState('');
+  const [sendEmailSuccess, setSendEmailSuccess] = useState('');
+
+  // "Exportar ahora" — solo descarga el archivo, sin correo.
+  const [exportingOnly, setExportingOnly] = useState(false);
+  const [exportOnlyError, setExportOnlyError] = useState('');
 
   const [previewItems, setPreviewItems] = useState([]);
   const [previewTotalCount, setPreviewTotalCount] = useState(0);
@@ -111,7 +130,7 @@ export function useReports() {
           setBranchId(String(branchesData[0].id));
         }
       } catch (err) {
-        setError(err.message || 'No se pudieron cargar las sucursales.');
+        setExportOnlyError(err.message || 'No se pudieron cargar las sucursales.');
       }
     }
 
@@ -163,40 +182,86 @@ export function useReports() {
     };
   }, [branchId, canMutate, type, from, to]);
 
-  async function handleExport(e) {
-    e.preventDefault();
-    setError('');
+  async function runExport() {
+    const blob = await exportReport(branchId, {
+      type,
+      format,
+      from: startOfDayIso(from),
+      to: endOfDayIso(to),
+    });
+
+    const branch = branches.find((b) => String(b.id) === branchId);
+    const extension = REPORT_FORMATS.find((f) => f.value === format)?.extension || format;
+    const fileName = `${type}_${branch?.code || branchId}_${from.replaceAll('-', '')}-${to.replaceAll('-', '')}.${extension}`;
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // "Exportar ahora": solo descarga el archivo del rango elegido, sin
+  // destinatarios — para quien solo quiere el PDF/Excel y no le interesa el correo.
+  async function handleExportOnly() {
+    setExportOnlyError('');
 
     if (to < from) {
-      setError("La fecha 'hasta' no puede ser anterior a la fecha 'desde'.");
+      setExportOnlyError("La fecha 'hasta' no puede ser anterior a la fecha 'desde'.");
       return;
     }
 
-    setExporting(true);
+    setExportingOnly(true);
     try {
-      const blob = await exportReport(branchId, {
+      await runExport();
+    } catch (err) {
+      setExportOnlyError(err.message || 'No se pudo generar el reporte.');
+    } finally {
+      setExportingOnly(false);
+    }
+  }
+
+  // "Enviar por correo ahora": genera el reporte del rango Desde/Hasta
+  // vigente y lo manda ya — no descarga nada en el navegador.
+  async function handleSendByEmail() {
+    setSendEmailError('');
+    setSendEmailSuccess('');
+
+    if (to < from) {
+      setSendEmailError("La fecha 'hasta' no puede ser anterior a la fecha 'desde'.");
+      return;
+    }
+
+    const emails = parseEmails(recipientEmailsInput);
+    if (emails.length === 0) {
+      setSendEmailError('Indicá al menos un correo destinatario.');
+      return;
+    }
+
+    const invalidEmail = emails.find((email) => !EMAIL_REGEX.test(email));
+    if (invalidEmail) {
+      setSendEmailError(`El correo '${invalidEmail}' no es válido.`);
+      return;
+    }
+
+    setSendingEmail(true);
+    try {
+      const result = await sendReportByEmail(branchId, {
         type,
         format,
         from: startOfDayIso(from),
         to: endOfDayIso(to),
+        recipientEmails: emails,
       });
-
-      const branch = branches.find((b) => String(b.id) === branchId);
-      const extension = REPORT_FORMATS.find((f) => f.value === format)?.extension || format;
-      const fileName = `${type}_${branch?.code || branchId}_${from.replaceAll('-', '')}-${to.replaceAll('-', '')}.${extension}`;
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      const sentCount = result?.sentCount ?? emails.length;
+      setSendEmailSuccess(`Reporte enviado por correo a ${sentCount} destinatario${sentCount === 1 ? '' : 's'}.`);
     } catch (err) {
-      setError(err.message || 'No se pudo generar el reporte.');
+      setSendEmailError(err.message || 'No se pudo enviar el reporte por correo.');
     } finally {
-      setExporting(false);
+      setSendingEmail(false);
     }
   }
 
@@ -218,9 +283,16 @@ export function useReports() {
     activeRange,
     applyQuickRange,
 
-    exporting,
-    error,
-    handleExport,
+    exportingOnly,
+    exportOnlyError,
+    handleExportOnly,
+
+    recipientEmailsInput,
+    setRecipientEmailsInput,
+    sendingEmail,
+    sendEmailError,
+    sendEmailSuccess,
+    handleSendByEmail,
 
     previewItems,
     previewTotalCount,

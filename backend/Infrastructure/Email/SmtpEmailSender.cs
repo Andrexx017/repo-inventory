@@ -16,7 +16,19 @@ public class SmtpEmailSender : IEmailSender
         _configuration = configuration;
     }
 
-    public async Task SendAsync(string toEmail, string subject, string htmlBody)
+    public Task SendAsync(string toEmail, string subject, string htmlBody) =>
+        SendMessageAsync(toEmail, subject, new BodyBuilder { HtmlBody = htmlBody });
+
+    public Task SendWithAttachmentAsync(
+        string toEmail, string subject, string htmlBody,
+        string attachmentFileName, byte[] attachmentContent, string attachmentContentType)
+    {
+        var builder = new BodyBuilder { HtmlBody = htmlBody };
+        builder.Attachments.Add(attachmentFileName, attachmentContent, ContentType.Parse(attachmentContentType));
+        return SendMessageAsync(toEmail, subject, builder);
+    }
+
+    private async Task SendMessageAsync(string toEmail, string subject, BodyBuilder bodyBuilder)
     {
         var smtpSection = _configuration.GetSection("Smtp");
         var host = smtpSection["Host"]
@@ -33,7 +45,7 @@ public class SmtpEmailSender : IEmailSender
         message.From.Add(new MailboxAddress(fromName, fromEmail));
         message.To.Add(MailboxAddress.Parse(toEmail));
         message.Subject = subject;
-        message.Body = new BodyBuilder { HtmlBody = htmlBody }.ToMessageBody();
+        message.Body = bodyBuilder.ToMessageBody();
 
         using var client = new SmtpClient();
         await client.ConnectAsync(host, port, SecureSocketOptions.StartTls);

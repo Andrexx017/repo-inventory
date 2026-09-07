@@ -1,3 +1,4 @@
+using Inventory.Modules.Reports.Dtos;
 using Inventory.Modules.Reports.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -39,5 +40,23 @@ public class ReportsController : ControllerBase
 
         var (content, contentType, fileName) = await _reportService.ExportAsync(branchId, type, format, from, to);
         return File(content, contentType, fileName);
+    }
+
+    // Envío manual e inmediato ("Enviar por correo ahora" en el frontend) —
+    // genera el mismo archivo que Export (arriba) y lo manda por correo una
+    // sola vez.
+    [HttpPost("{branchId:long}/send-now")]
+    public async Task<IActionResult> SendNow(long branchId, SendReportByEmailDto request)
+    {
+        var authResult = await _authorizationService.AuthorizeAsync(User, branchId, "SameBranch");
+        if (!authResult.Succeeded)
+        {
+            return Forbid();
+        }
+
+        var sentCount = await _reportService.SendByEmailAsync(
+            branchId, request.ReportType, request.Format, request.From, request.To, request.RecipientEmails);
+
+        return Ok(new { sentCount });
     }
 }

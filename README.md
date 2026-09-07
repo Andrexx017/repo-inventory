@@ -28,7 +28,7 @@ Tres roles cubren el flujo completo:
 | **Gerente de sucursal** (`branch_manager`) | Supervisa su propia sucursal, aprueba/deniega transferencias, consulta reportes. |
 | **Operador de inventario** (`inventory_operator`) | Trabajo operativo diario: ingresos/retiros de stock, ventas, compras, solicitudes de transferencia. |
 
-Funcionalidades adicionales implementadas (sección 4 de la prueba técnica): **alertas inteligentes de stock** (umbral mínimo/máximo, notificación opcional por correo) y **reportes exportables** (PDF/Excel de movimientos, ventas o transferencias por rango de fechas).
+Funcionalidades adicionales implementadas (sección 4 de la prueba técnica): **alertas inteligentes de stock** (umbral mínimo/máximo, notificación opcional por correo) y **reportes exportables** (PDF/Excel de movimientos, ventas o transferencias por rango de fechas), con envío manual por correo bajo demanda.
 
 El detalle completo de requisitos funcionales/no funcionales, restricciones y supuestos vive en [`requirements/documento-requisitos.md`](requirements/documento-requisitos.md); los casos de uso por actor, en [`requirements/casos-de-uso.md`](requirements/casos-de-uso.md).
 
@@ -51,7 +51,7 @@ El detalle completo de requisitos funcionales/no funcionales, restricciones y su
    Completar en `.env`:
    - `POSTGRES_PASSWORD` — contraseña de la base de datos.
    - `JWT_KEY` — clave simétrica para firmar los tokens (ej. `openssl rand -base64 48`).
-   - `SMTP_USER` / `SMTP_PASSWORD` — cuenta de Gmail (con contraseña de aplicación) usada para el correo de "recuperar contraseña" y las notificaciones de alertas de stock. Opcional: sin estos valores el sistema funciona igual, solo no se envían correos.
+   - `SMTP_USER` / `SMTP_PASSWORD` — cuenta de Gmail (con contraseña de aplicación) usada para el correo de "recuperar contraseña", las notificaciones de alertas de stock y el envío manual de reportes. Opcional: sin estos valores el sistema funciona igual, solo no se envían correos.
    - `VITE_API_URL` ya viene con el valor por defecto (`http://localhost:5107`).
 
 3. **Levantar todo el sistema:**
@@ -150,7 +150,7 @@ Los 8 módulos del dominio, con backend y frontend completos:
 | **Sales** | ✅ | ✅ | Registro de venta con precio resuelto por el servidor, validación de stock, listas de precio |
 | **Transfers** | ✅ | ✅ | Ciclo completo de transferencia entre sucursales (solicitar → aprobar/denegar → preparar → despachar → recibir, con reenvío automático de faltante) + logística (prioridad de ruta, transportista, cumplimiento estimado vs. real) |
 | **Dashboard** | ✅ | ✅ | KPIs cross-módulo: ventas del mes, rotación de inventario, transferencias activas, stock próximo a agotarse, comparativa entre sucursales (solo Administrador general) |
-| **Reports** | ✅ | ✅ | Exportación a PDF/Excel de movimientos, ventas o transferencias por rango de fechas (QuestPDF / ClosedXML) |
+| **Reports** | ✅ | ✅ | Exportación a PDF/Excel de movimientos, ventas o transferencias por rango de fechas (QuestPDF / ClosedXML), con envío manual por correo bajo demanda |
 
 `Dashboard` y `Reports` no tienen tablas propias: componen datos de los demás módulos inyectando sus repositorios/servicios. `Transfers` absorbe también la funcionalidad de **Logística**, porque el esquema no tiene tablas separadas para eso.
 
@@ -171,7 +171,7 @@ Alcance decidido explícitamente por tiempo: solo pruebas unitarias, sin pruebas
 Las decisiones técnicas se documentan con contexto, justificación, alternativas descartadas y consecuencias, por capa:
 
 - [`database/docs/decisions.md`](database/docs/decisions.md) — motor (PostgreSQL 18), sincronización entre sucursales vía base central única, roles como tabla propia, convención maestra/cabecera/detalle, alertas inteligentes de stock, datos de prueba, recuperación de contraseña.
-- [`backend/docs/decisions.md`](backend/docs/decisions.md) — .NET 10/ASP.NET Core, autenticación JWT, patrones de diseño (Repository, Service Layer, Strategy), Screaming Architecture, EF Core Database First + `EFCore.NamingConventions`, envío de correo (MailKit + Gmail SMTP), exportación de reportes (QuestPDF/ClosedXML).
+- [`backend/docs/decisions.md`](backend/docs/decisions.md) — .NET 10/ASP.NET Core, autenticación JWT, patrones de diseño (Repository, Service Layer, Strategy), Screaming Architecture, EF Core Database First + `EFCore.NamingConventions`, envío de correo (MailKit + Gmail SMTP), exportación de reportes (QuestPDF/ClosedXML), envío manual de reportes por correo.
 - [`frontend/docs/decisions.md`](frontend/docs/decisions.md) — React 19 + Vite, token JWT en memoria (no `localStorage`), Screaming Architecture espejo del backend (`api/`/`hooks/`/`pages/`).
 - [`backend/docs/reglas-negocio-criticas.md`](backend/docs/reglas-negocio-criticas.md) — reglas críticas (validación de stock antes de vender, atomicidad movimiento+inventario, atomicidad de recepción de transferencias, cálculo de totales agregados) y dónde se hacen cumplir.
 
