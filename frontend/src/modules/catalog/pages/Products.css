@@ -1,0 +1,99 @@
+/* Fila de filtros de Catálogo: buscador + selects a la par de los botones de
+   admin, ocupando el lugar donde antes iba el <h1> "Catálogo de productos"
+   (redundante con el título "Catálogo" que ya muestra el topbar de AppShell). */
+.pcat-filter-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.pcat-filter-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Cada campo pasa de "etiqueta arriba + input abajo" (2 líneas, ~60px de
+   alto) a "etiqueta al lado + input" en una sola línea — mismo campo, mismo
+   htmlFor/label semántico, solo cambia cómo se acomoda visualmente acá. */
+.pcat-filter-fields .field {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.pcat-filter-fields .field label {
+    margin-bottom: 0;
+    white-space: nowrap;
+    font-size: 11.5px;
+    flex: 0 0 auto;
+}
+
+.pcat-filter-fields .field input,
+.pcat-filter-fields .field select {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 9px;
+    font-size: 13px;
+}
+
+.pcat-field-search {
+    flex: 1 1 230px;
+    min-width: 210px;
+}
+
+/* Categoría/Unidad: sus opciones pueden ser nombres largos ("Panadería"),
+   necesitan más ancho que Estado o los campos de precio. */
+.pcat-field-sm {
+    flex: 0 1 170px;
+    min-width: 150px;
+}
+
+/* Estado y precio mín/máx: etiqueta corta + valor corto (2-3 dígitos u
+   "Activos"/"Inactivos"), no necesitan tanto ancho como Categoría/Unidad. */
+.pcat-field-xs {
+    flex: 0 1 110px;
+    min-width: 100px;
+}
+
+.pcat-filter-actions {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.pcat-filter-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+}
+
+/* Tabla de productos: aire arriba/abajo dentro del scroll interno y
+   encabezado fijo, para no perder de vista las columnas en listados largos. */
+.pcat-table-card {
+    padding: 10px 0;
+}
+
+.pcat-table-card .data-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 1;
+}
+
+@media (max-width: 900px) {
+    .pcat-filter-row {
+        align-items: stretch;
+    }
+
+    .pcat-field-search,
+    .pcat-field-sm,
+    .pcat-field-xs {
+        flex: 1 1 100%;
+    }
+}

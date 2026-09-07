@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getUser } from '../../../shared/apiClient';
 import {
   getProductsPaged, createProduct, updateProduct,
-  getProductCategories, getUnitsOfMeasure, createUnitOfMeasure,
+  getProductCategories, createProductCategory, getUnitsOfMeasure, createUnitOfMeasure,
 } from '../api/productsApi';
 
 export const ACTIVE_OPTIONS = [
@@ -57,6 +57,14 @@ export function useProducts() {
   const [newUnitAbbreviation, setNewUnitAbbreviation] = useState('');
   const [unitFormError, setUnitFormError] = useState('');
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
+
+  // Formulario de categoría nueva (ej. "Panadería") — mismo criterio que el de
+  // unidad de medida: solo GeneralAdmin la ve. Antes no existía forma de crear
+  // categorías desde la UI, quedaban limitadas a las del seed.
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [categoryFormError, setCategoryFormError] = useState('');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   // Filtros "debounced": search/categoryId/etc. se actualizan al tipear (inputs
   // controlados), pero el request al servidor espera a que el usuario deje de
@@ -243,6 +251,33 @@ export function useProducts() {
     }
   }
 
+  function openCategoryModal() {
+    setNewCategoryName('');
+    setNewCategoryDescription('');
+    setCategoryFormError('');
+    setIsCategoryModalOpen(true);
+  }
+
+  function closeCategoryModal() {
+    setIsCategoryModalOpen(false);
+  }
+
+  async function handleCreateCategory(e) {
+    e.preventDefault();
+    setCategoryFormError('');
+
+    try {
+      await createProductCategory({ name: newCategoryName, description: newCategoryDescription || null });
+      setNewCategoryName('');
+      setNewCategoryDescription('');
+      setIsCategoryModalOpen(false);
+      const categoriesData = await getProductCategories();
+      setCategories(categoriesData);
+    } catch (err) {
+      setCategoryFormError(err.message || 'No se pudo crear la categoría.');
+    }
+  }
+
   // Categoría del filtro: antes se derivaba solo de las categorías "en uso"
   // entre los productos ya cargados, pero ahora `products` es una página del
   // servidor (no el catálogo completo) — se deriva del catálogo completo de
@@ -301,5 +336,13 @@ export function useProducts() {
     openUnitModal,
     closeUnitModal,
     handleCreateUnit,
+
+    newCategoryName, setNewCategoryName,
+    newCategoryDescription, setNewCategoryDescription,
+    categoryFormError,
+    isCategoryModalOpen,
+    openCategoryModal,
+    closeCategoryModal,
+    handleCreateCategory,
   };
 }

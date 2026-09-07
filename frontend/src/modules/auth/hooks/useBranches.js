@@ -53,9 +53,16 @@ export function useBranches() {
     setIsModalOpen(false);
   }
 
+  const CODE_PATTERN = /^[A-Z]{3}-\d{2}$/;
+
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
+
+    if (editingId === null && !CODE_PATTERN.test(code)) {
+      setFormError('El código debe tener el formato AAA-99 (3 letras, guion y 2 números, ej: BOG-01).');
+      return;
+    }
 
     try {
       if (editingId === null) {

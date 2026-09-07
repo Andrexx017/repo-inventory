@@ -27,6 +27,10 @@ export function getProductCategories() {
   return getJson('/api/product-categories');
 }
 
+export function createProductCategory(payload) {
+  return postJson('/api/product-categories', payload);
+}
+
 export function getUnitsOfMeasure() {
   return getJson('/api/units-of-measure');
 }
