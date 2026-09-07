@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppShell from '../../../shared/components/AppShell';
-import { KpiModal, KpiModalTrigger } from '../../../shared/components/KpiModal';
 import { ConfirmModal } from '../../../shared/components/ConfirmModal';
 import { usePurchases, ORDER_STATUS_LABELS } from '../hooks/usePurchases';
 import './Purchases.css';
@@ -13,46 +12,18 @@ function PlusIcon() {
   );
 }
 
-function ClipboardIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="6" y="4" width="12" height="17" rx="2" />
-      <path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M9 11h6M9 15h6" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 3" />
-    </svg>
-  );
-}
-
-function CashIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="6" width="20" height="12" rx="2" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function InboxIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
-      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-    </svg>
-  );
-}
-
 function CloseIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5h16l-6 7.5V19l-4 2v-8.5z" />
     </svg>
   );
 }
@@ -89,8 +60,20 @@ export default function Purchases() {
     receiptNotes, setReceiptNotes, receiptError, openReceipt, closeReceipt, handleSubmitReceipt,
   } = usePurchases();
 
-  const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(null);
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterPopoverRef = useRef(null);
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target)) setFiltersOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const hasActiveFilters = supplierFilter !== '' || ordersFilterFrom !== '' || ordersFilterTo !== '';
 
   // ordersKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync) —
   // no se puede calcular desde `orders` porque esa lista ahora está paginada.
@@ -99,132 +82,129 @@ export default function Purchases() {
   const pendingApproval = ordersKpi?.pendingApproval ?? 0;
   const pendingReceipts = ordersKpi?.pendingReceipts ?? 0;
 
+  const currentBranch = branches.find((b) => String(b.id) === branchId);
+  const branchSubtitle = currentBranch
+    ? `${currentBranch.code} · ${currentBranch.name} · ${currentBranch.city}`
+    : undefined;
+
   return (
-    <AppShell title="Compras">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
-        <h1 className="page-title">Compras</h1>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <KpiModalTrigger onClick={() => setIsKpiModalOpen(true)} />
-
-          {isGeneralAdmin && (
-            <div className="field" style={{ margin: 0, flex: '0 0 260px' }}>
-              <label htmlFor="pur-branch">Sucursal</label>
-              <select id="pur-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-      </div>
-
+    <AppShell
+      title="Compras"
+      subtitle={branchSubtitle}
+      branches={isGeneralAdmin ? branches : undefined}
+      branchId={branchId}
+      onBranchChange={setBranchId}
+      branchLabel="Elige una sucursal"
+    >
       {loading && <p>Cargando...</p>}
       {error && <p className="form-error">{error}</p>}
 
       {!loading && !error && (
         <>
-          <KpiModal title="Indicadores — Compras" open={isKpiModalOpen} onClose={() => setIsKpiModalOpen(false)}>
-            <div className="pur-kpi-grid">
-              <div className="pur-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge"><ClipboardIcon /></span>
-                  <span className="pur-kpi-label">ÓRDENES ACTIVAS</span>
-                </div>
-                <span className="pur-kpi-value">{activeOrders}</span>
-                <span className="pur-kpi-sub">No canceladas ni completas</span>
+          <div className="pur-tabs-row">
+            <div className="tabs-left">
+              <div className="pur-tabs">
+                <button
+                  type="button"
+                  className={`pur-tab ${tab === 'ordenes' ? 'pur-tab-active' : ''}`}
+                  onClick={() => setTab('ordenes')}
+                >
+                  Órdenes de compra
+                </button>
+                <button
+                  type="button"
+                  className={`pur-tab ${tab === 'proveedores' ? 'pur-tab-active' : ''}`}
+                  onClick={() => setTab('proveedores')}
+                >
+                  Proveedores
+                </button>
               </div>
-              <div className="pur-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-warning"><ClockIcon /></span>
-                  <span className="pur-kpi-label">PENDIENTES DE APROBAR</span>
-                </div>
-                <span className="pur-kpi-value pur-kpi-value-warning">{pendingApproval}</span>
-                <span className="pur-kpi-sub">En estado borrador</span>
-              </div>
-              <div className="pur-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-success"><CashIcon /></span>
-                  <span className="pur-kpi-label">VALOR DEL MES</span>
-                </div>
-                <span className="pur-kpi-value">{formatMoney(monthValue)}</span>
-                <span className="pur-kpi-sub">Órdenes de este mes</span>
-              </div>
-              <div className="pur-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-cyan"><InboxIcon /></span>
-                  <span className="pur-kpi-label">RECEPCIONES PENDIENTES</span>
-                </div>
-                <span className="pur-kpi-value pur-kpi-value-cyan">{pendingReceipts}</span>
-                <span className="pur-kpi-sub">Confirmadas o parciales</span>
-              </div>
-            </div>
-          </KpiModal>
 
-          <div className="pur-tabs">
-            <button
-              type="button"
-              className={`pur-tab ${tab === 'ordenes' ? 'pur-tab-active' : ''}`}
-              onClick={() => setTab('ordenes')}
-            >
-              Órdenes de compra
-            </button>
-            <button
-              type="button"
-              className={`pur-tab ${tab === 'proveedores' ? 'pur-tab-active' : ''}`}
-              onClick={() => setTab('proveedores')}
-            >
-              Proveedores
-            </button>
+              {tab === 'ordenes' && (
+                <div className="filter-popover" ref={filterPopoverRef}>
+                  <button
+                    type="button"
+                    className={`filter-btn ${hasActiveFilters ? 'filter-btn-active' : ''}`}
+                    onClick={() => setFiltersOpen((open) => !open)}
+                  >
+                    <FilterIcon />
+                    Filtros
+                    {hasActiveFilters && <span className="filter-dot" />}
+                  </button>
+
+                  {filtersOpen && (
+                    <div className="filter-dropdown">
+                      <div className="field" style={{ margin: 0 }}>
+                        <label htmlFor="po-filter">Filtrar por proveedor</label>
+                        <select id="po-filter" value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}>
+                          <option value="">Todos los proveedores</option>
+                          {suppliers.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label htmlFor="po-filter-from">Desde</label>
+                        <input
+                          id="po-filter-from"
+                          type="date"
+                          value={ordersFilterFrom}
+                          max={ordersFilterTo || undefined}
+                          onChange={(e) => setOrdersFilterFrom(e.target.value)}
+                        />
+                      </div>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label htmlFor="po-filter-to">Hasta</label>
+                        <input
+                          id="po-filter-to"
+                          type="date"
+                          value={ordersFilterTo}
+                          min={ordersFilterFrom || undefined}
+                          onChange={(e) => setOrdersFilterTo(e.target.value)}
+                        />
+                      </div>
+                      <span className="filter-dropdown-hint">Histórico por proveedor — RF-14</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="tabs-actions">
+              <div className="kpi-strip">
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">ÓRDENES ACTIVAS</span>
+                  <span className="kpi-strip-value">{activeOrders}</span>
+                  <span className="kpi-strip-sub">No canceladas ni completas</span>
+                </div>
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">PENDIENTES DE APROBAR</span>
+                  <span className="kpi-strip-value kpi-strip-value-warning">{pendingApproval}</span>
+                  <span className="kpi-strip-sub">En estado borrador</span>
+                </div>
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">VALOR DEL MES</span>
+                  <span className="kpi-strip-value">{formatMoney(monthValue)}</span>
+                  <span className="kpi-strip-sub">Órdenes de este mes</span>
+                </div>
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">RECEPCIONES PENDIENTES</span>
+                  <span className="kpi-strip-value kpi-strip-value-cyan">{pendingReceipts}</span>
+                  <span className="kpi-strip-sub">Confirmadas o parciales</span>
+                </div>
+              </div>
+
+              {tab === 'ordenes' && canManageOrders && (
+                <button type="button" className="btn-primary" onClick={openOrderModal}>
+                  <PlusIcon />
+                  Crear orden
+                </button>
+              )}
+            </div>
           </div>
 
           {tab === 'ordenes' && (
             <>
-              {canManageOrders && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="button" className="btn-primary" onClick={openOrderModal}>
-                    <PlusIcon />
-                    Crear orden
-                  </button>
-                </div>
-              )}
-
-              <div className="pur-filter-row">
-                <div className="field" style={{ margin: 0, flex: '0 0 260px' }}>
-                  <label htmlFor="po-filter">Filtrar por proveedor</label>
-                  <select id="po-filter" value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}>
-                    <option value="">Todos los proveedores</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
-                  <label htmlFor="po-filter-from">Desde</label>
-                  <input
-                    id="po-filter-from"
-                    type="date"
-                    value={ordersFilterFrom}
-                    max={ordersFilterTo || undefined}
-                    onChange={(e) => setOrdersFilterFrom(e.target.value)}
-                  />
-                </div>
-                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
-                  <label htmlFor="po-filter-to">Hasta</label>
-                  <input
-                    id="po-filter-to"
-                    type="date"
-                    value={ordersFilterTo}
-                    min={ordersFilterFrom || undefined}
-                    onChange={(e) => setOrdersFilterTo(e.target.value)}
-                  />
-                </div>
-                <span className="inv-filter-hint" style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '12.5px' }}>
-                  Histórico por proveedor — RF-14
-                </span>
-              </div>
-
               <div className="table-card">
                 <table className="data-table">
                   <thead>
@@ -356,7 +336,7 @@ export default function Purchases() {
 
                       <div className="modal-footer">
                         <button type="submit" className="btn-primary">CONFIRMAR RECEPCIÓN</button>
-                        <button type="button" className="btn-secondary" onClick={closeReceipt}>Cancelar</button>
+                        <button type="button" className="btn-secondary btn-secondary-danger" onClick={closeReceipt}>Cancelar</button>
                       </div>
                     </form>
                   </div>
@@ -483,7 +463,7 @@ export default function Purchases() {
                             <td className="mono">{formatMoney(net)}</td>
                             <td>
                               {lines.length > 1 && (
-                                <button type="button" className="pur-remove-line" onClick={() => removeLine(i)}>Quitar</button>
+                                <button type="button" className="btn-remove-line" onClick={() => removeLine(i)} aria-label="Quitar línea">×</button>
                               )}
                             </td>
                           </tr>
@@ -493,7 +473,9 @@ export default function Purchases() {
                   </table>
                 </div>
 
-                <button type="button" className="pur-add-line" onClick={addLine}>+ Agregar línea</button>
+                <button type="button" className="btn-add-line" onClick={addLine} aria-label="Agregar línea" title="Agregar línea">
+                  <PlusIcon />
+                </button>
 
                 <div className="pur-totals-bar">
                   <span>Subtotal <span className="pur-total-value">{formatMoney(orderTotals.subtotal)}</span></span>
@@ -506,7 +488,7 @@ export default function Purchases() {
 
               <div className="modal-footer">
                 <button type="submit" className="btn-primary">CREAR ORDEN</button>
-                <button type="button" className="btn-secondary" onClick={closeOrderModal}>Cancelar</button>
+                <button type="button" className="btn-secondary btn-secondary-danger" onClick={closeOrderModal}>Cancelar</button>
               </div>
             </form>
           </div>

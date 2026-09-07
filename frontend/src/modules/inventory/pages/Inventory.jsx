@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppShell from '../../../shared/components/AppShell';
-import { KpiModal, KpiModalTrigger } from '../../../shared/components/KpiModal';
 import {
   useInventory,
   INCOMING_TYPES,
@@ -39,38 +38,36 @@ function CloseIcon() {
   );
 }
 
-function BoxIcon() {
+function SearchIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2 3 7v10l9 5 9-5V7z" />
-      <path d="M3 7l9 5 9-5" />
-      <path d="M12 12v10" />
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
     </svg>
   );
 }
 
-function AlertIcon() {
+function PencilIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3 2 20h20L12 3z" />
-      <path d="M12 9v5M12 17h.01" />
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   );
 }
 
-function CashIcon() {
+function CheckIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="6" width="20" height="12" rx="2" />
-      <circle cx="12" cy="12" r="3" />
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 12l6 6L20 6" />
     </svg>
   );
 }
 
-function ActivityIcon() {
+function FilterIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12h4l3 8 4-16 3 8h4" />
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5h16l-6 7.5V19l-4 2v-8.5z" />
     </svg>
   );
 }
@@ -113,7 +110,18 @@ export default function Inventory() {
     alertError, resolvingAlertId, handleResolveAlert,
   } = useInventory();
 
-  const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterPopoverRef = useRef(null);
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target)) setFiltersOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const hasActiveFilters = itemCategoryFilter !== '' || itemStatusFilter !== '';
 
   const currentBranch = branches.find((b) => String(b.id) === branchId);
   const today = new Date().toISOString().slice(0, 10);
@@ -127,85 +135,38 @@ export default function Inventory() {
 
   const movementTypeOptions = direction === 'ingreso' ? INCOMING_TYPES : OUTGOING_TYPES;
 
+  const branchSubtitle = currentBranch
+    ? `${currentBranch.code} · ${currentBranch.name} · ${currentBranch.city}`
+    : undefined;
+
+  const branchPickerLabel = isGeneralAdmin
+    ? 'Elige una sucursal'
+    : canMutate
+      ? 'Tu sucursal'
+      : 'Solo lectura';
+
   return (
-    <AppShell title="Inventario">
+    <AppShell
+      title="Inventario"
+      subtitle={branchSubtitle}
+      branches={branches}
+      branchId={branchId}
+      onBranchChange={setBranchId}
+      branchLabel={branchPickerLabel}
+    >
       <div className="inv-topline">
-        <div>
-          <h1 className="page-title">Inventario</h1>
-          {currentBranch && (
-            <p className="page-subtitle mono">
-              {currentBranch.code} · {currentBranch.name} · {currentBranch.city}
-            </p>
+        <div className="inv-topline-left">
+          {tab === 'existencias' && (
+            <div className="inv-search-box">
+              <SearchIcon />
+              <input
+                type="text"
+                placeholder="Buscar producto por SKU o nombre"
+                value={itemSearch}
+                onChange={(e) => setItemSearch(e.target.value)}
+              />
+            </div>
           )}
-        </div>
-
-        <div className="inv-topline-actions">
-          <KpiModalTrigger onClick={() => setIsKpiModalOpen(true)} />
-
-          <div className="inv-branch-picker">
-            <div className="inv-branch-row">
-              {isGeneralAdmin && (
-                <span className="status-pill status-pill-accent">ACCESO TOTAL</span>
-              )}
-              {!isGeneralAdmin && canMutate && (
-                <span className="status-pill status-pill-accent">TU SUCURSAL</span>
-              )}
-              {!isGeneralAdmin && !canMutate && branchId && (
-                <span className="status-pill status-pill-warn">SOLO LECTURA</span>
-              )}
-              <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name} — {branch.city}</option>
-                ))}
-              </select>
-            </div>
-            {!isGeneralAdmin && (
-              <span className="inv-branch-note">Podés consultar otras sucursales en solo lectura.</span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {loading && <p>Cargando...</p>}
-      {error && <p className="form-error">{error}</p>}
-
-      {!loading && !error && (
-        <>
-          <KpiModal title="Indicadores — Inventario" open={isKpiModalOpen} onClose={() => setIsKpiModalOpen(false)}>
-            <div className="inv-kpi-grid">
-              <div className="inv-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge"><BoxIcon /></span>
-                  <span className="inv-kpi-label">PRODUCTOS EN INVENTARIO</span>
-                </div>
-                <span className="inv-kpi-value">{items.length}</span>
-              </div>
-              <div className="inv-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-warning"><AlertIcon /></span>
-                  <span className="inv-kpi-label">ALERTAS ACTIVAS</span>
-                </div>
-                <span className="inv-kpi-value inv-kpi-value-warning">{activeAlertsCount}</span>
-                <span className="inv-kpi-sub">{lowStockCount} productos por debajo del mínimo</span>
-              </div>
-              <div className="inv-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-cyan"><CashIcon /></span>
-                  <span className="inv-kpi-label">VALOR DE INVENTARIO</span>
-                </div>
-                <span className="inv-kpi-value">{formatMoney(inventoryValue)}</span>
-                <span className="inv-kpi-sub">Costo promedio ponderado</span>
-              </div>
-              <div className="inv-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-success"><ActivityIcon /></span>
-                  <span className="inv-kpi-label">MOVIMIENTOS HOY</span>
-                </div>
-                <span className="inv-kpi-value">{movementsToday.length}</span>
-                <span className="inv-kpi-sub">{incomingToday} ingresos · {outgoingToday} retiros</span>
-              </div>
-            </div>
-          </KpiModal>
 
           <div className="inv-tabs">
             <button
@@ -232,66 +193,105 @@ export default function Inventory() {
           </div>
 
           {tab === 'existencias' && (
-            <>
-              {canRegisterMovement ? (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="button" className="btn-primary" onClick={openMovementModal}>
-                    <PlusIcon />
-                    Registrar movimiento
-                  </button>
-                </div>
-              ) : canMutate ? (
-                <p className="inv-readonly-note">
-                  Tu rol no registra movimientos de inventario directamente — es responsabilidad del Operador de inventario (o del Admin general).
-                </p>
-              ) : (
-                <p className="inv-readonly-note">
-                  Estás viendo el inventario de otra sucursal en modo solo lectura. Para registrar movimientos, cambiá a tu propia sucursal.
-                </p>
-              )}
+            <div className="filter-popover" ref={filterPopoverRef}>
+              <button
+                type="button"
+                className={`filter-btn ${hasActiveFilters ? 'filter-btn-active' : ''}`}
+                onClick={() => setFiltersOpen((open) => !open)}
+              >
+                <FilterIcon />
+                Filtros
+                {hasActiveFilters && <span className="filter-dot" />}
+              </button>
 
-              <div className="filter-row">
-                <div className="field" style={{ margin: 0, flex: '0 0 240px' }}>
-                  <label htmlFor="inv-item-search">Buscar producto</label>
-                  <input
-                    id="inv-item-search"
-                    type="text"
-                    placeholder="SKU o nombre"
-                    value={itemSearch}
-                    onChange={(e) => setItemSearch(e.target.value)}
-                  />
+              {filtersOpen && (
+                <div className="filter-dropdown">
+                  <div className="field" style={{ margin: 0 }}>
+                    <label htmlFor="inv-item-category">Categoría</label>
+                    <select
+                      id="inv-item-category"
+                      value={itemCategoryFilter}
+                      onChange={(e) => setItemCategoryFilter(e.target.value)}
+                    >
+                      <option value="">Todas</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label htmlFor="inv-item-status">Estado</label>
+                    <select
+                      id="inv-item-status"
+                      value={itemStatusFilter}
+                      onChange={(e) => setItemStatusFilter(e.target.value)}
+                    >
+                      {STOCK_STATUS_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div className="field" style={{ margin: 0, flex: '0 0 220px' }}>
-                  <label htmlFor="inv-item-category">Categoría</label>
-                  <select
-                    id="inv-item-category"
-                    style={{ width: '100%' }}
-                    value={itemCategoryFilter}
-                    onChange={(e) => setItemCategoryFilter(e.target.value)}
-                  >
-                    <option value="">Todas</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
-                  <label htmlFor="inv-item-status">Estado</label>
-                  <select
-                    id="inv-item-status"
-                    style={{ width: '100%' }}
-                    value={itemStatusFilter}
-                    onChange={(e) => setItemStatusFilter(e.target.value)}
-                  >
-                    {STOCK_STATUS_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <span className="inv-filter-hint">
-                  {itemsTotalCount} producto{itemsTotalCount === 1 ? '' : 's'} en esta sucursal
-                </span>
-              </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'existencias' && (
+            <span className="inv-filter-hint">
+              {itemsTotalCount} producto{itemsTotalCount === 1 ? '' : 's'} en esta sucursal
+            </span>
+          )}
+        </div>
+
+        <div className="inv-topline-actions">
+          <div className="kpi-strip">
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">PRODUCTOS</span>
+              <span className="kpi-strip-value">{items.length}</span>
+            </div>
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">ALERTAS ACTIVAS</span>
+              <span className="kpi-strip-value kpi-strip-value-warning">{activeAlertsCount}</span>
+              <span className="kpi-strip-sub">{lowStockCount} bajo mínimo</span>
+            </div>
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">VALOR INVENTARIO</span>
+              <span className="kpi-strip-value">{formatMoney(inventoryValue)}</span>
+            </div>
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">MOVIMIENTOS HOY</span>
+              <span className="kpi-strip-value">{movementsToday.length}</span>
+              <span className="kpi-strip-sub">{incomingToday} ing · {outgoingToday} ret</span>
+            </div>
+          </div>
+
+          {canRegisterMovement && (
+            <button type="button" className="btn-primary" onClick={openMovementModal}>
+              <PlusIcon />
+              Registrar movimiento
+            </button>
+          )}
+        </div>
+      </div>
+
+      {loading && <p>Cargando...</p>}
+      {error && <p className="form-error">{error}</p>}
+
+      {!loading && !error && (
+        <>
+          {tab === 'existencias' && (
+            <>
+              {!canRegisterMovement && (
+                canMutate ? (
+                  <p className="inv-readonly-note">
+                    Tu rol no registra movimientos de inventario directamente — es responsabilidad del Operador de inventario (o del Admin general).
+                  </p>
+                ) : (
+                  <p className="inv-readonly-note">
+                    Estás viendo el inventario de otra sucursal en modo solo lectura. Para registrar movimientos, cambiá a tu propia sucursal.
+                  </p>
+                )
+              )}
 
               {thresholdEditingItem && canMutate && (
                 <form onSubmit={handleSubmitThreshold} className="form-card">
@@ -325,11 +325,11 @@ export default function Inventory() {
                   {thresholdError && <p className="form-error">{thresholdError}</p>}
 
                   <button type="submit" className="btn-primary">GUARDAR UMBRAL</button>
-                  <button type="button" className="btn-secondary" onClick={cancelThresholdEdit}>Cancelar</button>
+                  <button type="button" className="btn-secondary btn-secondary-danger" onClick={cancelThresholdEdit}>Cancelar</button>
                 </form>
               )}
 
-              <div className="table-card">
+              <div className="table-card inv-table-scroll">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -363,8 +363,8 @@ export default function Inventory() {
                           <td className="mono text-muted">{formatDateTime(item.updatedAt)}</td>
                           <td>
                             {canMutate && (
-                              <button type="button" className="table-action" onClick={() => handleEditThreshold(item)}>
-                                Umbral
+                              <button type="button" className="btn-icon-square" onClick={() => handleEditThreshold(item)} aria-label="Editar umbral" title="Editar umbral">
+                                <PencilIcon />
                               </button>
                             )}
                           </td>
@@ -444,7 +444,7 @@ export default function Inventory() {
                 <span className="inv-filter-hint">Trazabilidad completa — RF-11</span>
               </div>
 
-              <div className="table-card">
+              <div className="table-card inv-table-scroll">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -508,7 +508,7 @@ export default function Inventory() {
             <>
               {alertError && <p className="form-error">{alertError}</p>}
 
-              <div className="table-card">
+              <div className="table-card inv-table-scroll">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -538,11 +538,13 @@ export default function Inventory() {
                           {a.status === 'pending' && canMutate && (
                             <button
                               type="button"
-                              className="table-action"
+                              className="btn-icon-square btn-icon-square-success"
                               disabled={resolvingAlertId === a.id}
                               onClick={() => handleResolveAlert(a.id)}
+                              aria-label="Resolver alerta"
+                              title={resolvingAlertId === a.id ? 'Resolviendo…' : 'Resolver'}
                             >
-                              {resolvingAlertId === a.id ? 'Resolviendo…' : 'Resolver'}
+                              <CheckIcon />
                             </button>
                           )}
                         </td>
@@ -668,7 +670,7 @@ export default function Inventory() {
                 >
                   {direction === 'ingreso' ? 'REGISTRAR INGRESO' : 'REGISTRAR RETIRO'}
                 </button>
-                <button type="button" className="btn-secondary" onClick={closeMovementModal}>Cancelar</button>
+                <button type="button" className="btn-secondary btn-secondary-danger" onClick={closeMovementModal}>Cancelar</button>
               </div>
             </form>
           </div>

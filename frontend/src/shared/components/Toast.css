@@ -81,7 +81,7 @@
 .toast-card-close {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--danger);
     font-size: 16px;
     line-height: 1;
     padding: 0 12px;
@@ -89,7 +89,7 @@
 }
 
 .toast-card-close:hover {
-    color: var(--text);
+    opacity: 0.75;
 }
 
 @media (max-width: 560px) {

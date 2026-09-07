@@ -41,7 +41,7 @@ export function ConfirmModal({
                     >
                         {confirmLabel}
                     </button>
-                    <button type="button" className="btn-secondary" onClick={onCancel}>{cancelLabel}</button>
+                    <button type="button" className="btn-secondary btn-secondary-danger" onClick={onCancel}>{cancelLabel}</button>
                 </div>
             </div>
         </div>

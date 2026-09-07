@@ -1,6 +1,5 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import AppShell from '../../../shared/components/AppShell';
-import { KpiModal, KpiModalTrigger } from '../../../shared/components/KpiModal';
 import { ConfirmModal } from '../../../shared/components/ConfirmModal';
 import {
   useTransfers,
@@ -11,6 +10,14 @@ import {
   TREATMENT_LABELS,
 } from '../hooks/useTransfers';
 import './Transfers.css';
+
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5h16l-6 7.5V19l-4 2v-8.5z" />
+    </svg>
+  );
+}
 
 function PlusIcon() {
   return (
@@ -24,44 +31,6 @@ function CloseIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 6l12 12M18 6L6 18" />
-    </svg>
-  );
-}
-
-function TruckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 7h11v9H2z" />
-      <path d="M13 10h4l4 3.5V16h-8z" />
-      <circle cx="6.5" cy="18" r="1.7" /><circle cx="16.5" cy="18" r="1.7" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 3" />
-    </svg>
-  );
-}
-
-function CheckCircleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M8 12.5l2.5 2.5L16 9.5" />
-    </svg>
-  );
-}
-
-function TimerIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 2h4" />
-      <circle cx="12" cy="14" r="8" />
-      <path d="M12 10v4l3 2" />
     </svg>
   );
 }
@@ -174,10 +143,22 @@ export default function Transfers() {
     canPrepare, canShip, canReceiveTransfer,
   } = useTransfers();
 
-  const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
   const [approveTarget, setApproveTarget] = useState(null);
   const [resendTarget, setResendTarget] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterPopoverRef = useRef(null);
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target)) setFiltersOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const hasActiveFilters = transfersFilterFrom !== '' || transfersFilterTo !== '';
 
   // transfersKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync)
   // — no se puede calcular desde `transfers` porque esa lista ahora está
@@ -188,111 +169,106 @@ export default function Transfers() {
   const conFaltante = transfersKpi?.receivedWithShortageThisMonth ?? 0;
   const avgDelay = transfersKpi?.averageDelayDays ?? null;
 
+  const currentBranch = branches.find((b) => String(b.id) === branchId);
+  const branchSubtitle = currentBranch
+    ? `${currentBranch.code} · ${currentBranch.name} · ${currentBranch.city}`
+    : undefined;
+
   return (
-    <AppShell title="Transferencias">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
-        <h1 className="page-title">Transferencias</h1>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <KpiModalTrigger onClick={() => setIsKpiModalOpen(true)} />
-
-          {isGeneralAdmin && (
-            <div className="field" style={{ margin: 0, flex: '0 0 260px' }}>
-              <label htmlFor="trf-branch">Sucursal</label>
-              <select id="trf-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-      </div>
-
+    <AppShell
+      title="Transferencias"
+      subtitle={branchSubtitle}
+      branches={isGeneralAdmin ? branches : undefined}
+      branchId={branchId}
+      onBranchChange={setBranchId}
+      branchLabel="Elige una sucursal"
+    >
       {loading && <p>Cargando...</p>}
       {error && <p className="form-error">{error}</p>}
 
       {!loading && !error && (
         <>
-          <KpiModal title="Indicadores — Transferencias" open={isKpiModalOpen} onClose={() => setIsKpiModalOpen(false)}>
-            <div className="trf-kpi-grid">
-              <div className="trf-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-cyan"><TruckIcon /></span>
-                  <span className="trf-kpi-label">EN TRÁNSITO</span>
-                </div>
-                <span className="trf-kpi-value trf-kpi-value-cyan">{enTransito}</span>
-                <span className="trf-kpi-sub">Camino a su destino</span>
+          <div className="tabs-row">
+            <div className="tabs-left">
+              <div className="trf-tabs">
+                <button type="button" className={`trf-tab ${tab === 'todas' ? 'trf-tab-active' : ''}`} onClick={() => setTab('todas')}>Todas</button>
+                <button type="button" className={`trf-tab ${tab === 'solicitadas' ? 'trf-tab-active' : ''}`} onClick={() => setTab('solicitadas')}>Solicitadas</button>
+                <button type="button" className={`trf-tab ${tab === 'transito' ? 'trf-tab-active' : ''}`} onClick={() => setTab('transito')}>En tránsito</button>
+                <button type="button" className={`trf-tab ${tab === 'recibidas' ? 'trf-tab-active' : ''}`} onClick={() => setTab('recibidas')}>Recibidas</button>
               </div>
-              <div className="trf-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-warning"><ClockIcon /></span>
-                  <span className="trf-kpi-label">PENDIENTES DE ACCIÓN</span>
-                </div>
-                <span className="trf-kpi-value trf-kpi-value-warning">{pendientesAccion}</span>
-                <span className="trf-kpi-sub">Solicitadas o en preparación</span>
-              </div>
-              <div className="trf-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-success"><CheckCircleIcon /></span>
-                  <span className="trf-kpi-label">RECIBIDAS ESTE MES</span>
-                </div>
-                <span className="trf-kpi-value">{recibidasEsteMesCount}</span>
-                <span className="trf-kpi-sub">{conFaltante} con faltante detectado</span>
-              </div>
-              <div className="trf-kpi-card">
-                <div className="kpi-card-header">
-                  <span className={`kpi-icon-badge ${avgDelay > 0 ? 'kpi-icon-badge-warning' : 'kpi-icon-badge-success'}`}><TimerIcon /></span>
-                  <span className="trf-kpi-label">RETRASO PROMEDIO</span>
-                </div>
-                <span className="trf-kpi-value" style={{ color: avgDelay > 0 ? 'var(--warning)' : 'var(--success)' }}>
-                  {avgDelay === null ? '—' : `${avgDelay > 0 ? '+' : '−'}${Math.abs(Math.round(avgDelay * 10) / 10)} d`}
-                </span>
-                <span className="trf-kpi-sub">Estimado vs. real de llegada</span>
-              </div>
-            </div>
-          </KpiModal>
 
-          <div className="trf-tabs">
-            <button type="button" className={`trf-tab ${tab === 'todas' ? 'trf-tab-active' : ''}`} onClick={() => setTab('todas')}>Todas</button>
-            <button type="button" className={`trf-tab ${tab === 'solicitadas' ? 'trf-tab-active' : ''}`} onClick={() => setTab('solicitadas')}>Solicitadas</button>
-            <button type="button" className={`trf-tab ${tab === 'transito' ? 'trf-tab-active' : ''}`} onClick={() => setTab('transito')}>En tránsito</button>
-            <button type="button" className={`trf-tab ${tab === 'recibidas' ? 'trf-tab-active' : ''}`} onClick={() => setTab('recibidas')}>Recibidas</button>
-          </div>
+              <div className="filter-popover" ref={filterPopoverRef}>
+                <button
+                  type="button"
+                  className={`filter-btn ${hasActiveFilters ? 'filter-btn-active' : ''}`}
+                  onClick={() => setFiltersOpen((open) => !open)}
+                >
+                  <FilterIcon />
+                  Filtros
+                  {hasActiveFilters && <span className="filter-dot" />}
+                </button>
 
-          {canRequestTransfer && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn-primary" onClick={openRequestModal}>
-                <PlusIcon />
-                Solicitar transferencia
-              </button>
+                {filtersOpen && (
+                  <div className="filter-dropdown">
+                    <div className="field" style={{ margin: 0 }}>
+                      <label htmlFor="trf-filter-from">Desde</label>
+                      <input
+                        id="trf-filter-from"
+                        type="date"
+                        value={transfersFilterFrom}
+                        max={transfersFilterTo || undefined}
+                        onChange={(e) => setTransfersFilterFrom(e.target.value)}
+                      />
+                    </div>
+                    <div className="field" style={{ margin: 0 }}>
+                      <label htmlFor="trf-filter-to">Hasta</label>
+                      <input
+                        id="trf-filter-to"
+                        type="date"
+                        value={transfersFilterTo}
+                        min={transfersFilterFrom || undefined}
+                        onChange={(e) => setTransfersFilterTo(e.target.value)}
+                      />
+                    </div>
+                    <span className="filter-dropdown-hint">Filtra por fecha de solicitud</span>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          <div className="filter-row">
-            <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
-              <label htmlFor="trf-filter-from">Desde</label>
-              <input
-                id="trf-filter-from"
-                type="date"
-                value={transfersFilterFrom}
-                max={transfersFilterTo || undefined}
-                onChange={(e) => setTransfersFilterFrom(e.target.value)}
-              />
+            <div className="tabs-actions">
+              <div className="kpi-strip">
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">EN TRÁNSITO</span>
+                  <span className="kpi-strip-value kpi-strip-value-cyan">{enTransito}</span>
+                  <span className="kpi-strip-sub">Camino a su destino</span>
+                </div>
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">PENDIENTES DE ACCIÓN</span>
+                  <span className="kpi-strip-value kpi-strip-value-warning">{pendientesAccion}</span>
+                  <span className="kpi-strip-sub">Solicitadas o en preparación</span>
+                </div>
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">RECIBIDAS ESTE MES</span>
+                  <span className="kpi-strip-value">{recibidasEsteMesCount}</span>
+                  <span className="kpi-strip-sub">{conFaltante} con faltante detectado</span>
+                </div>
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">RETRASO PROMEDIO</span>
+                  <span className="kpi-strip-value" style={{ color: avgDelay > 0 ? 'var(--warning)' : 'var(--success)' }}>
+                    {avgDelay === null ? '—' : `${avgDelay > 0 ? '+' : '−'}${Math.abs(Math.round(avgDelay * 10) / 10)} d`}
+                  </span>
+                  <span className="kpi-strip-sub">Estimado vs. real de llegada</span>
+                </div>
+              </div>
+
+              {canRequestTransfer && (
+                <button type="button" className="btn-primary" onClick={openRequestModal}>
+                  <PlusIcon />
+                  Solicitar transferencia
+                </button>
+              )}
             </div>
-            <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
-              <label htmlFor="trf-filter-to">Hasta</label>
-              <input
-                id="trf-filter-to"
-                type="date"
-                value={transfersFilterTo}
-                min={transfersFilterFrom || undefined}
-                onChange={(e) => setTransfersFilterTo(e.target.value)}
-              />
-            </div>
-            <span className="inv-filter-hint" style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '12.5px' }}>
-              Filtra por fecha de solicitud
-            </span>
           </div>
 
           <div className="table-card">
@@ -545,7 +521,7 @@ export default function Transfers() {
 
                   <div className="modal-footer">
                     <button type="submit" className="btn-primary">CONFIRMAR PREPARACIÓN</button>
-                    <button type="button" className="btn-secondary" onClick={closePrepare}>Cerrar</button>
+                    <button type="button" className="btn-secondary btn-secondary-danger" onClick={closePrepare}>Cerrar</button>
                   </div>
                 </form>
               </div>
@@ -598,7 +574,7 @@ export default function Transfers() {
 
                   <div className="modal-footer">
                     <button type="submit" className="btn-primary">CONFIRMAR DESPACHO</button>
-                    <button type="button" className="btn-secondary" onClick={closeShip}>Cerrar</button>
+                    <button type="button" className="btn-secondary btn-secondary-danger" onClick={closeShip}>Cerrar</button>
                   </div>
                 </form>
               </div>
@@ -668,7 +644,7 @@ export default function Transfers() {
 
                   <div className="modal-footer">
                     <button type="submit" className="btn-primary">CONFIRMAR RECEPCIÓN</button>
-                    <button type="button" className="btn-secondary" onClick={closeReceive}>Cerrar</button>
+                    <button type="button" className="btn-secondary btn-secondary-danger" onClick={closeReceive}>Cerrar</button>
                   </div>
                 </form>
               </div>
@@ -752,7 +728,7 @@ export default function Transfers() {
                             </td>
                             <td>
                               {lines.length > 1 && (
-                                <button type="button" className="trf-remove-line" onClick={() => removeLine(i)} aria-label="Quitar línea">×</button>
+                                <button type="button" className="btn-remove-line" onClick={() => removeLine(i)} aria-label="Quitar línea">×</button>
                               )}
                             </td>
                           </tr>
@@ -770,10 +746,11 @@ export default function Transfers() {
 
                 <button
                   type="button"
-                  className="trf-add-line"
+                  className="btn-add-line"
                   onClick={addLine}
                   disabled={lines.length >= products.length}
                   aria-label="Agregar línea"
+                  title="Agregar línea"
                 >
                   <PlusIcon />
                 </button>
@@ -784,7 +761,7 @@ export default function Transfers() {
 
               <div className="modal-footer">
                 <button type="submit" className="btn-primary">SOLICITAR TRANSFERENCIA</button>
-                <button type="button" className="btn-secondary" onClick={closeRequestModal}>Cerrar</button>
+                <button type="button" className="btn-secondary btn-secondary-danger" onClick={closeRequestModal}>Cerrar</button>
               </div>
             </form>
           </div>

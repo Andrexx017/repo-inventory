@@ -1,8 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppShell from '../../../shared/components/AppShell';
-import { KpiModal, KpiModalTrigger } from '../../../shared/components/KpiModal';
 import { useSales } from '../hooks/useSales';
 import './Sales.css';
+
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5h16l-6 7.5V19l-4 2v-8.5z" />
+    </svg>
+  );
+}
 
 function CloseIcon() {
   return (
@@ -20,37 +27,19 @@ function PlusIcon() {
   );
 }
 
-function CalendarIcon() {
+function PencilIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M3 9h18M8 3v4M16 3v4" />
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   );
 }
 
-function CashIcon() {
+function CheckIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="6" width="20" height="12" rx="2" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function ReceiptIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" />
-      <path d="M9 8h6M9 12h6" />
-    </svg>
-  );
-}
-
-function StarIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2.5l2.9 6.4 6.9.7-5.2 4.7 1.6 6.8-6.2-3.6-6.2 3.6 1.6-6.8-5.2-4.7 6.9-.7z" />
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 12l6 6L20 6" />
     </svg>
   );
 }
@@ -94,7 +83,18 @@ export default function Sales() {
     priceListFormError, handleCreatePriceList,
   } = useSales();
 
-  const [isKpiModalOpen, setIsKpiModalOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterPopoverRef = useRef(null);
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target)) setFiltersOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const hasActiveFilters = salesFilterFrom !== '' || salesFilterTo !== '';
 
   // salesKpi viene de un endpoint de agregados aparte (GetKpiSummaryAsync) —
   // no se puede calcular desde `sales` porque esa lista ahora está paginada.
@@ -106,120 +106,126 @@ export default function Sales() {
   const topProductName = salesKpi?.topProductName ?? null;
   const topProductUnits = salesKpi?.topProductUnits ?? 0;
 
+  const currentBranch = branches.find((b) => String(b.id) === branchId);
+  const branchSubtitle = currentBranch
+    ? `${currentBranch.code} · ${currentBranch.name} · ${currentBranch.city}`
+    : undefined;
+
   return (
-    <AppShell title="Ventas">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
-        <h1 className="page-title">Ventas</h1>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <KpiModalTrigger onClick={() => setIsKpiModalOpen(true)} />
-
-          {isGeneralAdmin && (
-            <div className="field" style={{ margin: 0, flex: '0 0 260px' }}>
-              <label htmlFor="sal-branch">Sucursal</label>
-              <select id="sal-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-      </div>
-
+    <AppShell
+      title="Ventas"
+      subtitle={branchSubtitle}
+      branches={isGeneralAdmin ? branches : undefined}
+      branchId={branchId}
+      onBranchChange={setBranchId}
+      branchLabel="Elige una sucursal"
+    >
       {loading && <p>Cargando...</p>}
       {error && <p className="form-error">{error}</p>}
 
       {!loading && !error && (
         <>
-          <KpiModal title="Indicadores — Ventas" open={isKpiModalOpen} onClose={() => setIsKpiModalOpen(false)}>
-            <div className="sal-kpi-grid">
-              <div className="sal-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge"><CalendarIcon /></span>
-                  <span className="sal-kpi-label">VENTAS DE HOY</span>
-                </div>
-                <span className="sal-kpi-value">{salesToday}</span>
-                <span className="sal-kpi-sub">{unitsToday} unidades vendidas</span>
+          <div className="tabs-row">
+            <div className="tabs-left">
+              <div className="sal-tabs">
+                <button
+                  type="button"
+                  className={`sal-tab ${tab === 'ventas' ? 'sal-tab-active' : ''}`}
+                  onClick={() => setTab('ventas')}
+                >
+                  Ventas
+                </button>
+                <button
+                  type="button"
+                  className={`sal-tab ${tab === 'listas' ? 'sal-tab-active' : ''}`}
+                  onClick={() => setTab('listas')}
+                >
+                  Listas de precio
+                </button>
               </div>
-              <div className="sal-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-success"><CashIcon /></span>
-                  <span className="sal-kpi-label">TOTAL DEL MES</span>
-                </div>
-                <span className="sal-kpi-value">{formatMoney(monthTotal)}</span>
-                <span className="sal-kpi-sub">{monthSalesCount} ventas este mes</span>
-              </div>
-              <div className="sal-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-cyan"><ReceiptIcon /></span>
-                  <span className="sal-kpi-label">TICKET PROMEDIO</span>
-                </div>
-                <span className="sal-kpi-value">{formatMoney(averageTicket)}</span>
-                <span className="sal-kpi-sub">Sobre el mes actual</span>
-              </div>
-              <div className="sal-kpi-card">
-                <div className="kpi-card-header">
-                  <span className="kpi-icon-badge kpi-icon-badge-warning"><StarIcon /></span>
-                  <span className="sal-kpi-label">PRODUCTO MÁS VENDIDO</span>
-                </div>
-                <span className="sal-kpi-value sal-kpi-value-text">{topProductName ?? 'Sin ventas este mes'}</span>
-                <span className="sal-kpi-sub">{topProductName ? `${topProductUnits} unidades este mes` : '—'}</span>
-              </div>
-            </div>
-          </KpiModal>
 
-          <div className="sal-tabs">
-            <button
-              type="button"
-              className={`sal-tab ${tab === 'ventas' ? 'sal-tab-active' : ''}`}
-              onClick={() => setTab('ventas')}
-            >
-              Ventas
-            </button>
-            <button
-              type="button"
-              className={`sal-tab ${tab === 'listas' ? 'sal-tab-active' : ''}`}
-              onClick={() => setTab('listas')}
-            >
-              Listas de precio
-            </button>
+              {tab === 'ventas' && (
+                <div className="filter-popover" ref={filterPopoverRef}>
+                  <button
+                    type="button"
+                    className={`filter-btn ${hasActiveFilters ? 'filter-btn-active' : ''}`}
+                    onClick={() => setFiltersOpen((open) => !open)}
+                  >
+                    <FilterIcon />
+                    Filtros
+                    {hasActiveFilters && <span className="filter-dot" />}
+                  </button>
+
+                  {filtersOpen && (
+                    <div className="filter-dropdown">
+                      <div className="field" style={{ margin: 0 }}>
+                        <label htmlFor="sal-filter-from">Desde</label>
+                        <input
+                          id="sal-filter-from"
+                          type="date"
+                          value={salesFilterFrom}
+                          max={salesFilterTo || undefined}
+                          onChange={(e) => setSalesFilterFrom(e.target.value)}
+                        />
+                      </div>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label htmlFor="sal-filter-to">Hasta</label>
+                        <input
+                          id="sal-filter-to"
+                          type="date"
+                          value={salesFilterTo}
+                          min={salesFilterFrom || undefined}
+                          onChange={(e) => setSalesFilterTo(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="tabs-actions">
+              <div className="kpi-strip">
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">VENTAS DE HOY</span>
+                  <span className="kpi-strip-value">{salesToday}</span>
+                  <span className="kpi-strip-sub">{unitsToday} unidades vendidas</span>
+                </div>
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">TOTAL DEL MES</span>
+                  <span className="kpi-strip-value kpi-strip-value-success">{formatMoney(monthTotal)}</span>
+                  <span className="kpi-strip-sub">{monthSalesCount} ventas este mes</span>
+                </div>
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">TICKET PROMEDIO</span>
+                  <span className="kpi-strip-value">{formatMoney(averageTicket)}</span>
+                  <span className="kpi-strip-sub">Sobre el mes actual</span>
+                </div>
+                <div className="kpi-strip-item">
+                  <span className="kpi-strip-label">PRODUCTO MÁS VENDIDO</span>
+                  <span className="kpi-strip-value kpi-strip-value-text" title={topProductName ?? undefined}>{topProductName ?? 'Sin ventas este mes'}</span>
+                  <span className="kpi-strip-sub">{topProductName ? `${topProductUnits} unidades este mes` : '—'}</span>
+                </div>
+              </div>
+
+              {tab === 'ventas' && canCreateSale && (
+                <button type="button" className="btn-primary" onClick={openSaleModal}>
+                  <PlusIcon />
+                  Registrar venta
+                </button>
+              )}
+
+              {tab === 'listas' && isGeneralAdmin && (
+                <button type="button" className="btn-primary" onClick={openCreatePriceListModal}>
+                  <PlusIcon />
+                  Nueva lista de precios
+                </button>
+              )}
+            </div>
           </div>
 
           {tab === 'ventas' && (
             <>
-              {canCreateSale && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="button" className="btn-primary" onClick={openSaleModal}>
-                    <PlusIcon />
-                    Registrar venta
-                  </button>
-                </div>
-              )}
-
-              <div className="filter-row">
-                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
-                  <label htmlFor="sal-filter-from">Desde</label>
-                  <input
-                    id="sal-filter-from"
-                    type="date"
-                    value={salesFilterFrom}
-                    max={salesFilterTo || undefined}
-                    onChange={(e) => setSalesFilterFrom(e.target.value)}
-                  />
-                </div>
-                <div className="field" style={{ margin: 0, flex: '0 0 160px' }}>
-                  <label htmlFor="sal-filter-to">Hasta</label>
-                  <input
-                    id="sal-filter-to"
-                    type="date"
-                    value={salesFilterTo}
-                    min={salesFilterFrom || undefined}
-                    onChange={(e) => setSalesFilterTo(e.target.value)}
-                  />
-                </div>
-              </div>
-
               <div className="table-card">
                 <table className="data-table">
                   <thead>
@@ -284,7 +290,7 @@ export default function Sales() {
                     </div>
 
                     <div className="modal-body">
-                      <p className="mono sal-kpi-sub" style={{ marginBottom: '14px' }}>
+                      <p className="mono text-muted" style={{ marginBottom: '14px', fontSize: '11px' }}>
                         {formatDate(viewSale.saleDate)} · {viewSale.priceListName || 'Precio de referencia'} · Vendedor: {viewSale.sellerName}
                       </p>
 
@@ -327,15 +333,6 @@ export default function Sales() {
 
           {tab === 'listas' && (
             <>
-              {isGeneralAdmin && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="button" className="btn-primary" onClick={openCreatePriceListModal}>
-                    <PlusIcon />
-                    Nueva lista de precios
-                  </button>
-                </div>
-              )}
-
               <div className="table-card">
                 <table className="data-table">
                   <thead>
@@ -364,8 +361,8 @@ export default function Sales() {
                         </td>
                         {isGeneralAdmin && (
                           <td>
-                            <button type="button" className="table-action" onClick={() => openPriceListEditor(pl)}>
-                              Editar precios
+                            <button type="button" className="btn-icon-square" onClick={() => openPriceListEditor(pl)} aria-label="Editar precios" title="Editar precios">
+                              <PencilIcon />
                             </button>
                           </td>
                         )}
@@ -484,7 +481,7 @@ export default function Sales() {
                             </td>
                             <td>
                               {lines.length > 1 && (
-                                <button type="button" className="sal-remove-line-icon" onClick={() => removeLine(i)} aria-label="Quitar línea">×</button>
+                                <button type="button" className="btn-remove-line" onClick={() => removeLine(i)} aria-label="Quitar línea">×</button>
                               )}
                             </td>
                           </tr>
@@ -501,10 +498,11 @@ export default function Sales() {
 
                 <button
                   type="button"
-                  className="sal-add-line"
+                  className="btn-add-line"
                   onClick={addLine}
                   disabled={lines.length >= products.length}
                   aria-label="Agregar línea"
+                  title="Agregar línea"
                 >
                   <PlusIcon />
                 </button>
@@ -515,7 +513,7 @@ export default function Sales() {
 
               <div className="modal-footer">
                 <button type="submit" className="btn-primary">REGISTRAR VENTA</button>
-                <button type="button" className="btn-secondary" onClick={closeSaleModal}>Cerrar</button>
+                <button type="button" className="btn-secondary btn-secondary-danger" onClick={closeSaleModal}>Cerrar</button>
               </div>
             </form>
           </div>
@@ -582,21 +580,25 @@ export default function Sales() {
                           <td style={{ whiteSpace: 'nowrap' }}>
                             <button
                               type="button"
-                              className="table-action"
+                              className="btn-icon-square btn-icon-square-success"
                               disabled={savingProductId === item.productId}
                               onClick={() => handleSavePrice(item.productId, item.price)}
+                              aria-label="Guardar precio"
+                              title="Guardar"
                             >
-                              Guardar
+                              <CheckIcon />
                             </button>
                             {item.price !== null && (
                               <button
                                 type="button"
-                                className="sal-remove-line"
+                                className="btn-remove-line"
                                 style={{ marginLeft: '10px' }}
                                 disabled={savingProductId === item.productId}
                                 onClick={() => handleRemovePrice(item.productId)}
+                                aria-label="Quitar precio"
+                                title="Quitar"
                               >
-                                Quitar
+                                ×
                               </button>
                             )}
                           </td>
@@ -617,7 +619,7 @@ export default function Sales() {
             </div>
 
             <div className="modal-footer">
-              <button type="button" className="btn-secondary" onClick={closePriceListEditor} style={{ marginLeft: 0 }}>
+              <button type="button" className="btn-secondary btn-secondary-danger" onClick={closePriceListEditor} style={{ marginLeft: 0 }}>
                 Cerrar
               </button>
             </div>
@@ -689,7 +691,7 @@ export default function Sales() {
 
               <div className="modal-footer">
                 <button type="submit" className="btn-primary">CREAR LISTA</button>
-                <button type="button" className="btn-secondary" onClick={closeCreatePriceListModal}>Cerrar</button>
+                <button type="button" className="btn-secondary btn-secondary-danger" onClick={closeCreatePriceListModal}>Cerrar</button>
               </div>
             </form>
           </div>

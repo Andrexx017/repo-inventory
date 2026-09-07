@@ -64,37 +64,39 @@ export default function Home() {
     return (
         <AppShell title="Inicio">
 
-            <div>
-                <h1 className="home-greeting">Hola, {user?.name?.split(' ')[0] ?? ''}</h1>
-                <p className="home-greeting-sub">
-                    {ROLE_LABELS[user?.role] ?? user?.role}
-                    {isGeneralAdmin
-                        ? ' · Vista de todas las sucursales'
-                        : (currentBranch ? ` · ${currentBranch.code} · ${currentBranch.name} · ${currentBranch.city}` : '')}
-                </p>
-            </div>
+            <div className="home-header">
+                <div>
+                    <h1 className="home-greeting">Hola, {user?.name?.split(' ')[0] ?? ''}</h1>
+                    <p className="home-greeting-sub">
+                        {ROLE_LABELS[user?.role] ?? user?.role}
+                        {isGeneralAdmin
+                            ? ' · Vista de todas las sucursales'
+                            : (currentBranch ? ` · ${currentBranch.code} · ${currentBranch.name} · ${currentBranch.city}` : '')}
+                    </p>
+                </div>
 
-            <div className="kpi-strip">
-                <div className="kpi-strip-item">
-                    <span className="kpi-strip-label">VENTAS DEL MES</span>
-                    <span className="kpi-strip-value">{loading ? '—' : monthTotal}</span>
-                </div>
-                <div className="kpi-strip-item">
-                    <span className="kpi-strip-label">UNIDADES HOY</span>
-                    <span className="kpi-strip-value">{loading ? '—' : unitsToday}</span>
-                </div>
-                <div className="kpi-strip-item">
-                    <span className="kpi-strip-label">ÓRDENES ACTIVAS</span>
-                    <span className="kpi-strip-value">{loading ? '—' : activeOrders}</span>
-                </div>
-                <div className="kpi-strip-item">
-                    <span className="kpi-strip-label">EVENTOS HOY</span>
-                    <span className="kpi-strip-value kpi-strip-value-accent">{loading ? '—' : eventsToday}</span>
+                <div className="kpi-strip">
+                    <div className="kpi-strip-item">
+                        <span className="kpi-strip-label">VENTAS DEL MES</span>
+                        <span className="kpi-strip-value">{loading ? '—' : monthTotal}</span>
+                    </div>
+                    <div className="kpi-strip-item">
+                        <span className="kpi-strip-label">UNIDADES HOY</span>
+                        <span className="kpi-strip-value">{loading ? '—' : unitsToday}</span>
+                    </div>
+                    <div className="kpi-strip-item">
+                        <span className="kpi-strip-label">ÓRDENES ACTIVAS</span>
+                        <span className="kpi-strip-value">{loading ? '—' : activeOrders}</span>
+                    </div>
+                    <div className="kpi-strip-item">
+                        <span className="kpi-strip-label">EVENTOS HOY</span>
+                        <span className="kpi-strip-value kpi-strip-value-accent">{loading ? '—' : eventsToday}</span>
+                    </div>
                 </div>
             </div>
 
             <div className="home-columns">
-                <div className="card">
+                <div className="card home-feed-card">
                     <div className="feed-head">
                         <h2 className="section-title">Actividad reciente</h2>
                         <div className="feed-filter-row">
@@ -150,8 +152,32 @@ export default function Home() {
                 </div>
 
                 <div className="home-side">
+                    <div className="card home-side-fixed">
+                        <h2 className="section-title">Accesos rápidos</h2>
+                        <div className="quick-icon-row">
+                            <Link className="quick-icon-btn" to="/products" title="Catálogo" aria-label="Catálogo">
+                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 4v5" /></svg>
+                            </Link>
+                            <Link className="quick-icon-btn" to="/inventory" title="Inventario" aria-label="Inventario">
+                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z" /><path d="M3 7l9 5 9-5" /><path d="M12 12v10" /></svg>
+                            </Link>
+                            <Link className="quick-icon-btn" to="/purchases" title="Compras" aria-label="Compras">
+                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="20" r="1.4" /><circle cx="17" cy="20" r="1.4" /><path d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 7H6" /></svg>
+                            </Link>
+                            <Link className="quick-icon-btn" to="/sales" title="Ventas" aria-label="Ventas">
+                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6M9 12h6" /></svg>
+                            </Link>
+                            <Link className="quick-icon-btn" to="/transfers" title="Transferencias" aria-label="Transferencias">
+                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7h11v9H2z" /><path d="M13 10h4l4 3.5V16h-8z" /><circle cx="6.5" cy="18" r="1.7" /><circle cx="16.5" cy="18" r="1.7" /></svg>
+                            </Link>
+                            <Link className="quick-icon-btn" to="/reports" title="Reportes" aria-label="Reportes">
+                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 13h6M9 17h6" /></svg>
+                            </Link>
+                        </div>
+                    </div>
+
                     {isGeneralAdmin && (
-                        <div className="card">
+                        <div className="card home-side-grow">
                             <h2 className="section-title">Actividad por sucursal — hoy</h2>
                             <div className="branch-activity-list">
                                 {branchActivity.map((b) => (
@@ -178,30 +204,6 @@ export default function Home() {
                             Estás viendo solo la actividad de tu sucursal asignada.
                         </div>
                     )}
-
-                    <div className="card">
-                        <h2 className="section-title">Accesos rápidos</h2>
-                        <div className="quick-icon-row">
-                            <Link className="quick-icon-btn" to="/products" title="Catálogo" aria-label="Catálogo">
-                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 4v5" /></svg>
-                            </Link>
-                            <Link className="quick-icon-btn" to="/inventory" title="Inventario" aria-label="Inventario">
-                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z" /><path d="M3 7l9 5 9-5" /><path d="M12 12v10" /></svg>
-                            </Link>
-                            <Link className="quick-icon-btn" to="/purchases" title="Compras" aria-label="Compras">
-                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="20" r="1.4" /><circle cx="17" cy="20" r="1.4" /><path d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 7H6" /></svg>
-                            </Link>
-                            <Link className="quick-icon-btn" to="/sales" title="Ventas" aria-label="Ventas">
-                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6M9 12h6" /></svg>
-                            </Link>
-                            <Link className="quick-icon-btn" to="/transfers" title="Transferencias" aria-label="Transferencias">
-                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7h11v9H2z" /><path d="M13 10h4l4 3.5V16h-8z" /><circle cx="6.5" cy="18" r="1.7" /><circle cx="16.5" cy="18" r="1.7" /></svg>
-                            </Link>
-                            <Link className="quick-icon-btn" to="/reports" title="Reportes" aria-label="Reportes">
-                                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 13h6M9 17h6" /></svg>
-                            </Link>
-                        </div>
-                    </div>
                 </div>
             </div>
         </AppShell>

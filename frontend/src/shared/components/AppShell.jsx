@@ -32,7 +32,7 @@ function navLinkClass({ isActive }) {
 // duplicado dentro de Home.jsx; se extrajo acá para no repetirlo por pantalla,
 // mismo motivo por el que el mockup usaba Sidebar.dc.html/Topbar.dc.html como
 // componentes compartidos (ver RUTA.md).
-export default function AppShell({ title, children }) {
+export default function AppShell({ title, subtitle, branches, branchId, onBranchChange, branchLabel, children }) {
     const navigate = useNavigate();
     const user = getUser();
     const { theme, toggleTheme } = useTheme();
@@ -205,7 +205,25 @@ export default function AppShell({ title, children }) {
                     </button>
 
                     <span className="app-page-title">{title}</span>
+                    {subtitle && <span className="app-page-subtitle mono">{subtitle}</span>}
                     <div className="app-topbar-spacer" />
+
+                    {branches && branches.length > 0 && (
+                        <>
+                            {branchLabel && <span className="app-branch-label">{branchLabel}</span>}
+                            <select
+                                className="app-branch-select"
+                                value={branchId}
+                                onChange={(e) => onBranchChange(e.target.value)}
+                                aria-label="Sucursal"
+                            >
+                                {branches.map((b) => (
+                                    <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
+                                ))}
+                            </select>
+                            <div className="app-topbar-divider" />
+                        </>
+                    )}
 
                     <TopSearch />
 

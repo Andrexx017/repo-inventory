@@ -1,37 +1,24 @@
-.dash-topline {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px;
-}
-
-.dash-branch-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.dash-branch-row select {
-    width: 220px;
-    padding: 9px 11px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-family: var(--font-sans);
-    font-size: 13px;
-}
-
 .dash-bento {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: 16px;
 }
 
+.dash-span-3 { grid-column: span 3; }
 .dash-span-4 { grid-column: span 4; }
 .dash-span-5 { grid-column: span 5; }
+.dash-span-6 { grid-column: span 6; }
 .dash-span-7 { grid-column: span 7; }
 .dash-span-8 { grid-column: span 8; }
+
+/* Fila superior de KPIs — 4 tarjetas iguales, separada de .dash-bento porque
+   siempre son 4 columnas fijas y no participan del resto de la grilla. */
+
+.dash-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
 
 .dash-card {
     background: var(--surface);
@@ -80,55 +67,71 @@
     white-space: nowrap;
 }
 
-/* KPIs apilados dentro de una sola tarjeta (a diferencia del kpi-grid de
-   Inventario/Reportes, acá comparten una tarjeta con el gráfico al lado) */
+/* Tarjetas de KPI de la fila superior */
 
-.dash-kpi-stack {
+.dash-kpi-card {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    gap: 6px;
 }
 
-.dash-kpi-row {
+.dash-kpi-card-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
+    gap: 8px;
+    margin-bottom: 2px;
 }
 
-.dash-kpi-row:first-child { padding-top: 0; }
-.dash-kpi-row:last-child { border-bottom: none; padding-bottom: 0; }
+.dash-kpi-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+    border-radius: 7px;
+    background: var(--accent-soft);
+    color: var(--accent);
+}
 
-.dash-kpi-row-label {
-    font-size: 12px;
+.dash-kpi-card-icon-warning {
+    background: var(--warning-soft);
+    color: var(--warning);
+}
+
+.dash-kpi-card-icon-success {
+    background: var(--success-soft);
+    color: var(--success);
+}
+
+.dash-kpi-card-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
     color: var(--text-muted);
 }
 
-.dash-kpi-row-figure {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-}
-
-.dash-kpi-row-value {
+.dash-kpi-card-value {
     font-family: var(--font-mono);
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
     color: var(--text);
 }
 
-.dash-kpi-row-value-text {
+.dash-kpi-card-value-text {
     font-family: var(--font-sans);
-    font-size: 13px;
-    font-weight: 600;
-    text-align: right;
+    font-size: 15px;
+    line-height: 1.3;
 }
 
-.dash-kpi-row-value-warning {
+.dash-kpi-card-value-warning {
     color: var(--warning);
+}
+
+.dash-kpi-card-hint {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    min-height: 15px;
 }
 
 .delta-up {
@@ -397,25 +400,18 @@
 }
 
 @media (max-width: 900px) {
-    .dash-topline {
-        flex-direction: column;
-    }
-
-    .dash-branch-row {
-        flex-wrap: wrap;
-        width: 100%;
-    }
-
-    .dash-branch-row select {
-        width: 100%;
+    .dash-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .dash-bento {
         grid-template-columns: 1fr;
     }
 
+    .dash-span-3,
     .dash-span-4,
     .dash-span-5,
+    .dash-span-6,
     .dash-span-7,
     .dash-span-8 {
         grid-column: span 1;
@@ -431,6 +427,8 @@
        desbordan en vez de scrollear. */
     .dash-card {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
     }
 
     .dash-card .data-table {
@@ -440,6 +438,8 @@
     .dash-chart {
         overflow-x: auto;
         padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
     }
 
     .dash-chart-col {
@@ -448,7 +448,8 @@
 }
 
 @media (max-width: 560px) {
-    .dash-mini-kpi-grid {
+    .dash-mini-kpi-grid,
+    .dash-kpi-grid {
         grid-template-columns: 1fr;
     }
 }

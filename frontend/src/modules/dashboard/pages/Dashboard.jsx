@@ -27,6 +27,53 @@ function CloseIcon() {
   );
 }
 
+function RestockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 8V6a2 2 0 0 0-1-1.73l-6-3.46a2 2 0 0 0-2 0l-6 3.46A2 2 0 0 0 5 6v6a2 2 0 0 0 1 1.73l3 1.73" />
+      <path d="M3.27 6.96 12 12l8.73-5.04" />
+      <path d="M12 22.08V12" />
+      <path d="M18 15v6M15 18h6" />
+    </svg>
+  );
+}
+
+function MoneyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M6 6v.01M18 18v-.01" />
+    </svg>
+  );
+}
+
+function SwapIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h14M18 7l-3.5-3.5M18 7l-3.5 3.5" />
+      <path d="M20 17H6M6 17l3.5-3.5M6 17l3.5 3.5" />
+    </svg>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 2 20h20L12 3z" />
+      <path d="M12 10v4M12 17h.01" />
+    </svg>
+  );
+}
+
+function StarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2.5 14.9 8.6 21.5 9.5 16.8 14.1 17.9 20.7 12 17.6 6.1 20.7 7.2 14.1 2.5 9.5 9.1 8.6 12 2.5z" />
+    </svg>
+  );
+}
+
 function TrendIcon({ up }) {
   return (
     <svg width="8" height="8" viewBox="0 0 10 10">
@@ -109,6 +156,9 @@ export default function Dashboard() {
   } = useDashboard();
 
   const currentBranch = branches.find((b) => String(b.id) === branchId);
+  const branchSubtitle = currentBranch
+    ? `${currentBranch.code} · ${currentBranch.name} · ${currentBranch.city}`
+    : undefined;
 
   const transfersCount = activeTransfers?.activeTransfers?.length ?? null;
   const impactTotal = activeTransfers?.inventoryImpact?.reduce((sum, i) => sum + i.quantityInTransit, 0) ?? 0;
@@ -116,33 +166,57 @@ export default function Dashboard() {
   const topProduct = inventoryRotation?.topDemand?.[0] ?? null;
 
   return (
-    <AppShell title="Dashboard">
-      <div className="dash-topline">
-        <div>
-          <h1 className="page-title">Dashboard</h1>
-          {currentBranch && (
-            <p className="page-subtitle mono">{currentBranch.code} · {currentBranch.name} · {currentBranch.city}</p>
-          )}
-        </div>
-
-        {isGeneralAdmin ? (
-          <div className="dash-branch-row">
-            <span className="status-pill status-pill-accent">ACCESO TOTAL</span>
-            <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name} — {b.city}</option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <span className="status-pill status-pill-accent">TU SUCURSAL</span>
-        )}
-      </div>
-
+    <AppShell
+      title="Dashboard"
+      subtitle={branchSubtitle}
+      branches={isGeneralAdmin ? branches : undefined}
+      branchId={branchId}
+      onBranchChange={setBranchId}
+      branchLabel="Elige una sucursal"
+    >
       {loading && <p>Cargando...</p>}
       {error && <p className="form-error">{error}</p>}
 
       {!loading && !error && (
+        <>
+        <div className="dash-kpi-grid">
+          <div className="dash-card dash-kpi-card">
+            <div className="dash-kpi-card-head">
+              <span className="dash-kpi-card-icon"><MoneyIcon /></span>
+              <span className="dash-kpi-card-label">VENTAS DEL MES</span>
+            </div>
+            <span className="dash-kpi-card-value">{formatMoney(salesSummary?.currentMonthTotal)}</span>
+            <Delta value={salesSummary?.percentChangeVsPreviousMonth ?? null} />
+          </div>
+
+          <div className="dash-card dash-kpi-card">
+            <div className="dash-kpi-card-head">
+              <span className="dash-kpi-card-icon"><SwapIcon /></span>
+              <span className="dash-kpi-card-label">TRANSFERENCIAS ACTIVAS</span>
+            </div>
+            <span className="dash-kpi-card-value">{transfersCount ?? '—'}</span>
+            <span className="dash-kpi-card-hint">{impactTotal > 0 ? `${impactTotal} uds. en tránsito` : 'Sin unidades en tránsito'}</span>
+          </div>
+
+          <div className="dash-card dash-kpi-card">
+            <div className="dash-kpi-card-head">
+              <span className="dash-kpi-card-icon dash-kpi-card-icon-warning"><AlertIcon /></span>
+              <span className="dash-kpi-card-label">REABASTECIMIENTO URGENTE</span>
+            </div>
+            <span className="dash-kpi-card-value dash-kpi-card-value-warning">{lowStockCount ?? '—'}</span>
+            <span className="dash-kpi-card-hint">{lowStockCount ? 'productos bajo el mínimo' : 'Todo en orden'}</span>
+          </div>
+
+          <div className="dash-card dash-kpi-card">
+            <div className="dash-kpi-card-head">
+              <span className="dash-kpi-card-icon dash-kpi-card-icon-success"><StarIcon /></span>
+              <span className="dash-kpi-card-label">MAYOR ROTACIÓN ({inventoryRotation?.periodDays ?? '—'}D)</span>
+            </div>
+            <span className="dash-kpi-card-value dash-kpi-card-value-text">{topProduct?.productName ?? 'Sin ventas'}</span>
+            <span className="dash-kpi-card-hint">{topProduct ? `${topProduct.quantitySold} unidades vendidas` : ' '}</span>
+          </div>
+        </div>
+
         <div className="dash-bento">
 
           <div className="dash-card dash-span-8">
@@ -156,30 +230,6 @@ export default function Dashboard() {
           </div>
 
           <div className="dash-card dash-span-4">
-            <div className="dash-kpi-stack">
-              <div className="dash-kpi-row">
-                <span className="dash-kpi-row-label">VENTAS DEL MES</span>
-                <span className="dash-kpi-row-figure">
-                  <span className="dash-kpi-row-value">{formatMoney(salesSummary?.currentMonthTotal)}</span>
-                  <Delta value={salesSummary?.percentChangeVsPreviousMonth ?? null} />
-                </span>
-              </div>
-              <div className="dash-kpi-row">
-                <span className="dash-kpi-row-label">TRANSFERENCIAS ACTIVAS</span>
-                <span className="dash-kpi-row-value">{transfersCount ?? '—'}</span>
-              </div>
-              <div className="dash-kpi-row">
-                <span className="dash-kpi-row-label">REABASTECIMIENTO URGENTE</span>
-                <span className="dash-kpi-row-value dash-kpi-row-value-warning">{lowStockCount ?? '—'}</span>
-              </div>
-              <div className="dash-kpi-row">
-                <span className="dash-kpi-row-label">MAYOR ROTACIÓN ({inventoryRotation?.periodDays ?? '—'}D)</span>
-                <span className="dash-kpi-row-value dash-kpi-row-value-text">{topProduct?.productName ?? 'Sin ventas'}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="dash-card dash-span-4">
             <div className="dash-card-title-row">
               <h2 className="dash-title-success">MAYOR DEMANDA</h2>
               <span className="dash-card-caption">{inventoryRotation?.periodDays ?? '—'} días</span>
@@ -187,7 +237,7 @@ export default function Dashboard() {
             <RotationList items={inventoryRotation?.topDemand} tone="success" emptyLabel="Sin ventas en el período." />
           </div>
 
-          <div className="dash-card dash-span-4">
+          <div className="dash-card dash-span-6">
             <div className="dash-card-title-row">
               <h2>MENOR DEMANDA</h2>
               <span className="dash-card-caption">{inventoryRotation?.periodDays ?? '—'} días</span>
@@ -195,7 +245,7 @@ export default function Dashboard() {
             <RotationList items={inventoryRotation?.lowDemand} tone="muted" emptyLabel="Sin productos de baja demanda." />
           </div>
 
-          <div className="dash-card dash-span-4">
+          <div className="dash-card dash-span-6">
             <div className="dash-card-title-row">
               <h2>REABASTECIMIENTO</h2>
               <span className="dash-card-caption">Por déficit</span>
@@ -218,8 +268,8 @@ export default function Dashboard() {
                         style={{ width: `${deficitPercent(item)}%` }}
                       />
                     </div>
-                    <button type="button" className="table-action dash-restock-btn" onClick={() => openRestockModal(item)}>
-                      Reabastecer
+                    <button type="button" className="btn-icon-square dash-restock-btn" onClick={() => openRestockModal(item)} aria-label="Reabastecer" title="Reabastecer">
+                      <RestockIcon />
                     </button>
                   </div>
                 ))}
@@ -290,6 +340,7 @@ export default function Dashboard() {
           )}
 
         </div>
+        </>
       )}
 
       {restockItem && (
@@ -327,7 +378,7 @@ export default function Dashboard() {
 
             <div className="modal-footer">
               <button type="button" className="btn-primary" onClick={goToInventoryForRestock}>IR A INVENTARIO</button>
-              <button type="button" className="btn-secondary" onClick={closeRestockModal}>Cancelar</button>
+              <button type="button" className="btn-secondary btn-secondary-danger" onClick={closeRestockModal}>Cancelar</button>
             </div>
           </div>
         </div>

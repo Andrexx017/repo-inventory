@@ -2,13 +2,6 @@
    Sucursales, Roles, Usuarios) — evita repetir el mismo bloque de CSS en
    cada módulo, mismo criterio que theme.css para las variables de color. */
 
-.page-title {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--text);
-}
-
 .page-subtitle {
     margin: 6px 0 0;
     color: var(--text-muted);
@@ -27,6 +20,65 @@
     border-radius: 10px;
     overflow-x: hidden;
     overflow-y: auto;
+}
+
+/* Scrollbar horizontal visible y arrastrable — sin esto, en las tablas que
+   pasan a scrollear en vez de desbordar (ver @media 900px más abajo y el
+   mismo criterio en Transferencias/Compras/Ventas/Dashboard), la scrollbar
+   nativa del tema oscuro queda casi invisible y el usuario no encuentra cómo
+   llegar a las columnas/acciones que quedaron fuera de pantalla (ej. Aprobar/
+   Denegar en Transferencias). Selectores de otros módulos incluidos acá para
+   no repetir el mismo bloque en cada CSS. */
+.table-card,
+.trf-lines-table,
+.trf-stepper,
+.pur-lines-table,
+.sal-lines-table,
+.dash-card,
+.dash-chart {
+    scrollbar-width: thin;
+    scrollbar-color: var(--text-muted) transparent;
+}
+
+.table-card::-webkit-scrollbar,
+.trf-lines-table::-webkit-scrollbar,
+.trf-stepper::-webkit-scrollbar,
+.pur-lines-table::-webkit-scrollbar,
+.sal-lines-table::-webkit-scrollbar,
+.dash-card::-webkit-scrollbar,
+.dash-chart::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-card::-webkit-scrollbar-track,
+.trf-lines-table::-webkit-scrollbar-track,
+.trf-stepper::-webkit-scrollbar-track,
+.pur-lines-table::-webkit-scrollbar-track,
+.sal-lines-table::-webkit-scrollbar-track,
+.dash-card::-webkit-scrollbar-track,
+.dash-chart::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.table-card::-webkit-scrollbar-thumb,
+.trf-lines-table::-webkit-scrollbar-thumb,
+.trf-stepper::-webkit-scrollbar-thumb,
+.pur-lines-table::-webkit-scrollbar-thumb,
+.sal-lines-table::-webkit-scrollbar-thumb,
+.dash-card::-webkit-scrollbar-thumb,
+.dash-chart::-webkit-scrollbar-thumb {
+    background: var(--text-muted);
+    border-radius: 4px;
+}
+
+.table-card::-webkit-scrollbar-thumb:hover,
+.trf-lines-table::-webkit-scrollbar-thumb:hover,
+.trf-stepper::-webkit-scrollbar-thumb:hover,
+.pur-lines-table::-webkit-scrollbar-thumb:hover,
+.sal-lines-table::-webkit-scrollbar-thumb:hover,
+.dash-card::-webkit-scrollbar-thumb:hover,
+.dash-chart::-webkit-scrollbar-thumb:hover {
+    background: var(--text);
 }
 
 .data-table {
@@ -129,34 +181,348 @@
     text-decoration: underline;
 }
 
-/* Fila de filtros sobre un listado (ej. Ventas/Transferencias por fecha) —
-   mismo look que .inv-filter-row/.pur-filter-row, generalizado acá para no
-   repetir el bloque en cada módulo que agregue su primer filtro. */
-.filter-row {
+/* Botón cuadrado con ícono para acciones de fila (editar, umbral, guardar,
+   resolver, etc.) — reemplaza los links de texto de .table-action, mismo
+   criterio de color que .btn-primary/.btn-primary-danger: verde para
+   aceptar/agregar, rojo para quitar/denegar, neutro (hover celeste) para
+   editar/ver. */
+.btn-icon-square {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    flex: none;
+}
+
+.btn-icon-square:hover {
+    color: var(--cyan);
+    border-color: var(--cyan);
+    background: rgba(79, 184, 217, 0.1);
+}
+
+.btn-icon-square:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    color: var(--text-muted);
+    border-color: var(--border);
+    background: none;
+}
+
+.btn-icon-square-success {
+    color: var(--success);
+    border-color: var(--success);
+}
+
+.btn-icon-square-success:hover {
+    color: var(--success);
+    border-color: var(--success);
+    background: var(--success-soft);
+}
+
+.btn-icon-square-danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.btn-icon-square-danger:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+    background: var(--danger-soft);
+}
+
+/* Fila que combina tabs + tira de indicadores (Compras/Ventas/Transferencias). */
+.tabs-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px 20px;
+}
+
+/* Agrupa la tira de KPIs + el botón de acción principal (ej. "Registrar
+   venta", "Crear orden") en una sola fila junto a las tabs — antes el botón
+   quedaba en su propia fila suelta debajo, con un salto de espaciado extra
+   sin motivo. */
+.tabs-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+/* Lado izquierdo de .tabs-row: agrupa las tabs + el botón de filtros. */
+.tabs-left {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 14px;
+}
+
+/* Botón que reemplaza la barra de filtros siempre visible por un popover —
+   mismo criterio en Inventario/Compras/Ventas/Transferencias: el filtro solo
+   ocupa espacio cuando se está usando, en vez de una fila fija todo el
+   tiempo. El popover es position:absolute (no empuja layout) — el salto que
+   se veía al abrirlo antes era la scrollbar de .app-content apareciendo de
+   golpe; se arregló con scrollbar-gutter:stable ahí, no acá. */
+.filter-popover {
+    position: relative;
+}
+
+.filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.filter-btn:hover {
+    color: var(--text);
+    border-color: var(--text-muted);
+}
+
+.filter-btn-active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.filter-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.filter-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 240px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 14px 18px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+    padding: 16px;
 }
 
-.filter-row select {
-    width: 260px;
-    padding: 9px 11px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-size: 13.5px;
+.filter-dropdown-hint {
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.4;
 }
 
 @media (max-width: 900px) {
-    .filter-row select {
+    .tabs-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sal-tabs,
+    .trf-tabs,
+    .tabs-actions,
+    .tabs-left {
         width: 100%;
     }
+
+    .tabs-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .tabs-actions .btn-primary {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .tabs-left {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-btn {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .filter-dropdown {
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+/* Tira de indicadores en línea, junto a las tabs de cada listado — reemplaza
+   el botón "Ver indicadores" + modal (mismo criterio que Inventario, que ya
+   la mostraba así). Alto pensado para quedar a la par de los botones/tabs con
+   los que comparte fila (.tabs-row/.tabs-actions, .pur-tabs-row) — antes el
+   padding y los tamaños de fuente heredados la hacían bastante más alta que
+   un .btn-primary, generando un salto de espaciado dentro de la misma fila. */
+.kpi-strip {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 7px 16px;
+}
+
+.kpi-strip-item {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 0 16px;
+}
+
+.kpi-strip-item:first-child {
+    padding-left: 0;
+}
+
+.kpi-strip-item + .kpi-strip-item {
+    border-left: 1px solid var(--border);
+}
+
+.kpi-strip-label {
+    font-size: 9.5px;
+    line-height: 1.2;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+}
+
+.kpi-strip-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.kpi-strip-value-warning {
+    color: var(--warning);
+}
+
+.kpi-strip-value-success {
+    color: var(--success);
+}
+
+.kpi-strip-value-cyan {
+    color: var(--cyan);
+}
+
+.kpi-strip-value-text {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+}
+
+.kpi-strip-sub {
+    color: var(--text-muted);
+    font-size: 9.5px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    .kpi-strip {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px 20px;
+    }
+
+    .kpi-strip-item {
+        padding: 0 !important;
+        border-left: none !important;
+    }
+}
+
+@media (max-width: 560px) {
+    .kpi-strip {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Fila de líneas editable (orden de compra/venta, solicitud de transferencia)
+   — botón "+" para agregar línea (siempre verde, mismo criterio que
+   aceptar/agregar) y botón "×" para quitar línea (siempre rojo). Generalizado
+   acá porque Compras/Ventas/Transferencias repetían el mismo bloque. */
+.btn-add-line {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px dashed var(--success);
+    border-radius: 6px;
+    background: none;
+    color: var(--success);
+    cursor: pointer;
+    margin-bottom: 16px;
+    padding: 0;
+}
+
+.btn-add-line:hover {
+    background: var(--success-soft);
+    border-style: solid;
+}
+
+.btn-add-line:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: var(--border);
+    color: var(--text-muted);
+    background: none;
+}
+
+.btn-remove-line {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--danger);
+    font-size: 16px;
+    line-height: 1;
+    font-weight: 600;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.btn-remove-line:hover {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+}
+
+.btn-remove-line:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* Paginación server-side de listados/historiales (Inventario, Ventas,
@@ -233,6 +599,9 @@
     margin: 0 0 12px;
 }
 
+/* Acción positiva (aceptar/agregar/confirmar/crear) — siempre verde, mismo
+   criterio en todo el sistema para que el usuario asocie el color a la
+   acción sin tener que leer el texto del botón. */
 .btn-primary {
     display: inline-flex;
     align-items: center;
@@ -240,8 +609,8 @@
     padding: 10px 18px;
     border: none;
     border-radius: 6px;
-    background: var(--accent);
-    color: #1a1204;
+    background: var(--success);
+    color: #06210f;
     font-weight: 700;
     font-size: 13px;
     letter-spacing: 0.3px;
@@ -249,7 +618,7 @@
 }
 
 [data-theme='light'] .btn-primary {
-    color: #fffaf5;
+    color: #f4fff8;
 }
 
 .btn-secondary {
@@ -265,6 +634,29 @@
     font-size: 13px;
     cursor: pointer;
     margin-left: 8px;
+}
+
+/* Acción negativa (cancelar/cerrar/denegar) sobre .btn-secondary — mismo
+   criterio de color que .btn-primary-danger, pero en variante "outline". */
+.btn-secondary-danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.btn-secondary-danger:hover {
+    background: var(--danger-soft);
+}
+
+/* Acción positiva secundaria (ej. "Nueva unidad de medida" junto a "Nuevo
+   producto") — mismo verde de .btn-primary pero en variante outline, para no
+   competir en peso visual con la acción principal de la pantalla. */
+.btn-secondary-success {
+    color: var(--success);
+    border-color: var(--success);
+}
+
+.btn-secondary-success:hover {
+    background: var(--success-soft);
 }
 
 /* Variante de .btn-primary para la acción destructiva de un ConfirmModal
@@ -288,7 +680,7 @@
 .action-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
 }
 
 .btn-group {
@@ -298,6 +690,56 @@
 
 .btn-group .btn-secondary {
     margin-left: 0;
+}
+
+/* Fila de filtros con buscador + botones de acción a la par, dentro del
+   .form-card (Usuarios, Sucursales) — mismo criterio que .pcat-filter-row en
+   Catálogo: el buscador y los botones de alta comparten una sola fila en vez
+   de un .action-row suelto arriba de la card. */
+.list-filter-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.list-filter-row .field {
+    flex: 1 1 260px;
+    min-width: 210px;
+    margin-bottom: 0;
+}
+
+.list-filter-actions {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.list-filter-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+}
+
+/* Tabla de listado: aire arriba/abajo dentro del scroll interno y encabezado
+   fijo, mismo criterio que .pcat-table-card en Catálogo. */
+.list-table-card {
+    padding: 10px 0;
+}
+
+.list-table-card .data-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 1;
+}
+
+@media (max-width: 900px) {
+    .list-filter-row {
+        align-items: stretch;
+    }
 }
 
 /* Modales (ej. alta/edición de producto y de unidad de medida en Catálogo) */
@@ -352,14 +794,15 @@
 .modal-close {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--danger);
     cursor: pointer;
     display: flex;
     padding: 4px;
+    border-radius: 6px;
 }
 
 .modal-close:hover {
-    color: var(--danger);
+    background: var(--danger-soft);
 }
 
 .modal-body {
@@ -376,6 +819,13 @@
 @media (max-width: 900px) {
     .table-card {
         overflow-x: auto;
+        /* Sin este padding, el scroll horizontal deja el contenido pegado al
+           borde redondeado de la card y la barra de scroll nativa queda
+           encima de la última fila — mismo criterio que .dash-chart en
+           Dashboard.css. */
+        padding-bottom: 6px;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
     }
 
     .data-table {

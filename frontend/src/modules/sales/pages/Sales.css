@@ -1,41 +1,3 @@
-.sal-kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
-}
-
-.sal-kpi-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.sal-kpi-label {
-    color: var(--text-muted);
-    font-size: 12px;
-}
-
-.sal-kpi-value {
-    font-family: var(--font-mono);
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--text);
-}
-
-.sal-kpi-value-text {
-    font-family: var(--font-sans);
-    font-size: 16px;
-}
-
-.sal-kpi-sub {
-    color: var(--text-muted);
-    font-size: 11px;
-}
-
 .sal-tabs {
     display: flex;
     gap: 6px;
@@ -125,58 +87,6 @@
     font-size: 13px;
 }
 
-.sal-add-line {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 1px dashed var(--border);
-    border-radius: 6px;
-    background: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    margin-bottom: 16px;
-}
-
-.sal-add-line:hover {
-    color: var(--text);
-    border-color: var(--text-muted);
-}
-
-.sal-add-line:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-/* Texto — se usa fuera de las líneas dinámicas de "Registrar venta" (ej.
-   "Quitar" un precio ya cargado en "Editar precios"), donde sí hay lugar de
-   sobra para la palabra completa. */
-.sal-remove-line {
-    color: var(--danger);
-    font-size: 12px;
-    font-weight: 600;
-    background: none;
-    border: none;
-    cursor: pointer;
-}
-
-/* Ícono — línea dinámica de "Registrar venta" (agregar/quitar producto). */
-.sal-remove-line-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    color: var(--danger);
-    font-size: 17px;
-    line-height: 1;
-    font-weight: 600;
-    background: none;
-    border: none;
-    cursor: pointer;
-}
-
 .sal-form-note {
     margin: 0 0 12px;
     color: var(--text-muted);
@@ -216,21 +126,13 @@
 }
 
 @media (max-width: 900px) {
-    .sal-kpi-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .sal-lines-table {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
     }
 
     .sal-lines-table table {
         min-width: 640px;
-    }
-}
-
-@media (max-width: 560px) {
-    .sal-kpi-grid {
-        grid-template-columns: 1fr;
     }
 }
