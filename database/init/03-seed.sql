@@ -8,10 +8,14 @@
 -- a mano por DBeaver), este script también hay que correrlo a mano una vez.
 --
 -- Credenciales de prueba (usuarios sembrados más abajo) — SOLO PARA DESARROLLO:
---   Password para los 3: Prueba123!
---   admin@inventory.test         (general_admin,      sin sucursal)
---   diana.torres@inventory.test  (branch_manager,     Sucursal Bogotá)
---   julian.gomez@inventory.test  (inventory_operator, Sucursal Medellín)
+--   Password para los 7: Prueba123!
+--   admin@sucursalia.com      (general_admin,      sin sucursal)
+--   geBogota@sucursalia.com   (branch_manager,     Sucursal Bogotá)
+--   geMedellin@sucursalia.com (branch_manager,     Sucursal Medellín)
+--   geCali@sucursalia.com     (branch_manager,     Sucursal Cali)
+--   opBogota@sucursalia.com   (inventory_operator, Sucursal Bogotá)
+--   opMedellin@sucursalia.com (inventory_operator, Sucursal Medellín)
+--   opCali@sucursalia.com     (inventory_operator, Sucursal Cali)
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -89,22 +93,43 @@ FROM products p
 WHERE p.sku IN ('CAF-001', 'ARR-001', 'JAB-001');
 
 -- ---------------------------------------------------------------------
--- Usuarios de prueba — uno por rol (ver credenciales en el encabezado)
+-- Usuarios de prueba — 1 admin general + 1 gerente y 1 operador por cada
+-- sucursal (ver credenciales en el encabezado). Las 3 sucursales ya se
+-- crearon arriba, así que el (SELECT id FROM branches WHERE code = ...) de
+-- cada fila siempre resuelve.
 -- ---------------------------------------------------------------------
 
 INSERT INTO users (branch_id, role_id, name, email, password_hash) VALUES
     (NULL,
         (SELECT id FROM roles WHERE code = 'general_admin'),
-        'Carlos Ramírez', 'admin@inventory.test',
-        'AQAAAAIAAYagAAAAEKc4IADwECgyZmzBin4/EDyiT4vJE9XXEuyxftdLmoXYQEwl1fpEYcK2QmXwOozsmw=='),
+        'Carlos Ramírez', 'admin@sucursalia.com',
+        'AQAAAAIAAYagAAAAEBXWJhBAqQzLqyhXEXxaWCMmmDhFX4v4YlLbi+7RMdNTwViZ9zp1ZlsX2yhVnAeqnw=='),
+    -- Gerentes de sucursal: exactamente 1 por sucursal (branch_manager)
     ((SELECT id FROM branches WHERE code = 'BOG-01'),
         (SELECT id FROM roles WHERE code = 'branch_manager'),
-        'Diana Torres', 'diana.torres@inventory.test',
-        'AQAAAAIAAYagAAAAEKc4IADwECgyZmzBin4/EDyiT4vJE9XXEuyxftdLmoXYQEwl1fpEYcK2QmXwOozsmw=='),
+        'Diana Torres', 'geBogota@sucursalia.com',
+        'AQAAAAIAAYagAAAAEBXWJhBAqQzLqyhXEXxaWCMmmDhFX4v4YlLbi+7RMdNTwViZ9zp1ZlsX2yhVnAeqnw=='),
+    ((SELECT id FROM branches WHERE code = 'MED-01'),
+        (SELECT id FROM roles WHERE code = 'branch_manager'),
+        'Mariana Ríos', 'geMedellin@sucursalia.com',
+        'AQAAAAIAAYagAAAAEBXWJhBAqQzLqyhXEXxaWCMmmDhFX4v4YlLbi+7RMdNTwViZ9zp1ZlsX2yhVnAeqnw=='),
+    ((SELECT id FROM branches WHERE code = 'CAL-01'),
+        (SELECT id FROM roles WHERE code = 'branch_manager'),
+        'Camilo Herrera', 'geCali@sucursalia.com',
+        'AQAAAAIAAYagAAAAEBXWJhBAqQzLqyhXEXxaWCMmmDhFX4v4YlLbi+7RMdNTwViZ9zp1ZlsX2yhVnAeqnw=='),
+    -- Operadores de inventario: exactamente 1 por sucursal (inventory_operator)
+    ((SELECT id FROM branches WHERE code = 'BOG-01'),
+        (SELECT id FROM roles WHERE code = 'inventory_operator'),
+        'Andrés Salcedo', 'opBogota@sucursalia.com',
+        'AQAAAAIAAYagAAAAEBXWJhBAqQzLqyhXEXxaWCMmmDhFX4v4YlLbi+7RMdNTwViZ9zp1ZlsX2yhVnAeqnw=='),
     ((SELECT id FROM branches WHERE code = 'MED-01'),
         (SELECT id FROM roles WHERE code = 'inventory_operator'),
-        'Julián Gómez', 'julian.gomez@inventory.test',
-        'AQAAAAIAAYagAAAAEKc4IADwECgyZmzBin4/EDyiT4vJE9XXEuyxftdLmoXYQEwl1fpEYcK2QmXwOozsmw==');
+        'Julián Gómez', 'opMedellin@sucursalia.com',
+        'AQAAAAIAAYagAAAAEBXWJhBAqQzLqyhXEXxaWCMmmDhFX4v4YlLbi+7RMdNTwViZ9zp1ZlsX2yhVnAeqnw=='),
+    ((SELECT id FROM branches WHERE code = 'CAL-01'),
+        (SELECT id FROM roles WHERE code = 'inventory_operator'),
+        'Valentina Ortiz', 'opCali@sucursalia.com',
+        'AQAAAAIAAYagAAAAEBXWJhBAqQzLqyhXEXxaWCMmmDhFX4v4YlLbi+7RMdNTwViZ9zp1ZlsX2yhVnAeqnw==');
 
 -- ---------------------------------------------------------------------
 -- Inventario inicial por sucursal (RF-06 a RF-11)
@@ -152,7 +177,7 @@ INSERT INTO inventory_movements (
     responsible_user_id, reference_type, reference_id, movement_date, created_at
 )
 SELECT b.id, p.id, 'adjustment_in', v.qty, NULLIF(v.wac, 0), 'Saldo inicial de apertura (datos de prueba)',
-    (SELECT id FROM users WHERE email = 'admin@inventory.test'),
+    (SELECT id FROM users WHERE email = 'admin@sucursalia.com'),
     'manual_adjustment', NULL, now() - interval '30 days', now() - interval '30 days'
 FROM (VALUES
     ('BOG-01', 'CAF-001', 45::numeric, 15000.00::numeric),
@@ -185,13 +210,13 @@ INSERT INTO sales (sale_number, branch_id, price_list_id, seller_id, customer_na
     ('VTA-000001',
         (SELECT id FROM branches WHERE code = 'BOG-01'),
         NULL,
-        (SELECT id FROM users WHERE email = 'diana.torres@inventory.test'),
+        (SELECT id FROM users WHERE email = 'geBogota@sucursalia.com'),
         'Cliente Mostrador', now() - interval '5 days',
         75000.00, 0.00, 75000.00, 'confirmed'),
     ('VTA-000002',
         (SELECT id FROM branches WHERE code = 'MED-01'),
         (SELECT id FROM price_lists WHERE name = 'Lista Mayorista'),
-        (SELECT id FROM users WHERE email = 'julian.gomez@inventory.test'),
+        (SELECT id FROM users WHERE email = 'opMedellin@sucursalia.com'),
         'Supermercado El Ahorro', now() - interval '2 days',
         13600.00, 0.00, 13600.00, 'confirmed');
 
@@ -209,12 +234,12 @@ INSERT INTO inventory_movements (
 ) VALUES
     ((SELECT id FROM branches WHERE code = 'BOG-01'), (SELECT id FROM products WHERE sku = 'CAF-001'),
         'sale_out', 5, NULL, 'Venta VTA-000001',
-        (SELECT id FROM users WHERE email = 'diana.torres@inventory.test'),
+        (SELECT id FROM users WHERE email = 'geBogota@sucursalia.com'),
         'sale', (SELECT id FROM sales WHERE sale_number = 'VTA-000001'),
         now() - interval '5 days', now() - interval '5 days'),
     ((SELECT id FROM branches WHERE code = 'MED-01'), (SELECT id FROM products WHERE sku = 'ARR-001'),
         'sale_out', 5, NULL, 'Venta VTA-000002',
-        (SELECT id FROM users WHERE email = 'julian.gomez@inventory.test'),
+        (SELECT id FROM users WHERE email = 'opMedellin@sucursalia.com'),
         'sale', (SELECT id FROM sales WHERE sale_number = 'VTA-000002'),
         now() - interval '2 days', now() - interval '2 days');
 
@@ -236,13 +261,13 @@ INSERT INTO purchase_orders (order_number, supplier_id, branch_id, status, order
         (SELECT id FROM branches WHERE code = 'BOG-01'),
         'confirmed', now() - interval '3 days', 30,
         420000.00, 0.00, 420000.00,
-        (SELECT id FROM users WHERE email = 'admin@inventory.test'), NULL, NULL),
+        (SELECT id FROM users WHERE email = 'admin@sucursalia.com'), NULL, NULL),
     ('OC-000002',
         (SELECT id FROM suppliers WHERE name = 'Alimentos del Valle Ltda.'),
         (SELECT id FROM branches WHERE code = 'CAL-01'),
         'confirmed', now() - interval '1 day', 15,
         450000.00, 0.00, 450000.00,
-        (SELECT id FROM users WHERE email = 'admin@inventory.test'), NULL, NULL);
+        (SELECT id FROM users WHERE email = 'admin@sucursalia.com'), NULL, NULL);
 
 INSERT INTO purchase_order_items (purchase_order_id, product_id, quantity, unit_price, discount_pct) VALUES
     ((SELECT id FROM purchase_orders WHERE order_number = 'OC-000001'),
@@ -266,14 +291,14 @@ INSERT INTO transfers (transfer_number, origin_branch_id, destination_branch_id,
     ('TR-000001',
         (SELECT id FROM branches WHERE code = 'MED-01'),
         (SELECT id FROM branches WHERE code = 'CAL-01'),
-        (SELECT id FROM users WHERE email = 'admin@inventory.test'),
+        (SELECT id FROM users WHERE email = 'admin@sucursalia.com'),
         NULL, NULL,
         'requested', 'medium', now() - interval '1 day'),
     ('TR-000002',
         (SELECT id FROM branches WHERE code = 'BOG-01'),
         (SELECT id FROM branches WHERE code = 'MED-01'),
-        (SELECT id FROM users WHERE email = 'julian.gomez@inventory.test'),
-        (SELECT id FROM users WHERE email = 'admin@inventory.test'), now() - interval '6 hours',
+        (SELECT id FROM users WHERE email = 'opMedellin@sucursalia.com'),
+        (SELECT id FROM users WHERE email = 'admin@sucursalia.com'), now() - interval '6 hours',
         'requested', 'high', now() - interval '1 day');
 
 INSERT INTO transfer_items (transfer_id, product_id, requested_quantity) VALUES
@@ -285,10 +310,10 @@ INSERT INTO transfer_items (transfer_id, product_id, requested_quantity) VALUES
 INSERT INTO transfer_events (transfer_id, status, event_date, notes, recorded_by) VALUES
     ((SELECT id FROM transfers WHERE transfer_number = 'TR-000001'),
         'requested', now() - interval '1 day', NULL,
-        (SELECT id FROM users WHERE email = 'admin@inventory.test')),
+        (SELECT id FROM users WHERE email = 'admin@sucursalia.com')),
     ((SELECT id FROM transfers WHERE transfer_number = 'TR-000002'),
         'requested', now() - interval '1 day', NULL,
-        (SELECT id FROM users WHERE email = 'julian.gomez@inventory.test')),
+        (SELECT id FROM users WHERE email = 'opMedellin@sucursalia.com')),
     ((SELECT id FROM transfers WHERE transfer_number = 'TR-000002'),
         'requested', now() - interval '6 hours', 'Aprobada por el gerente de la sucursal destino.',
-        (SELECT id FROM users WHERE email = 'admin@inventory.test'));
+        (SELECT id FROM users WHERE email = 'admin@sucursalia.com'));
